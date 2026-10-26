@@ -27,6 +27,7 @@ namespace SavedData
         {
             var settingsModel = LoadData<SettingsModel>();
             var collectibleModel = LoadData<CollectibleModel>();
+            var remoteConfigModel = LoadData<RemoteConfigModel>();
 
         }
         public T GetModel<T>() where T : IModel

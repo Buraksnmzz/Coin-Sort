@@ -1,0 +1,296 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5283b55940fc341d88b7ecaab7b211a4, type: 3}
+  m_Name: BoardInitialLayoutConfig
+  m_EditorClassIdentifier: 
+  boardOneSlots:
+  - coinStacks:
+    - tier: 2
+      count: 5
+      isHidden: 0
+    - tier: 1
+      count: 3
+      isHidden: 0
+  - coinStacks:
+    - tier: 1
+      count: 3
+      isHidden: 0
+  - coinStacks:
+    - tier: 2
+      count: 3
+      isHidden: 0
+    - tier: 1
+      count: 4
+      isHidden: 0
+  - coinStacks:
+    - tier: 3
+      count: 4
+      isHidden: 0
+  - coinStacks:
+    - tier: 3
+      count: 4
+      isHidden: 0
+  boardTemplates:
+  - slots:
+    - coinStacks:
+      - tier: 11
+        count: 3
+        isHidden: 1
+      - tier: 13
+        count: 3
+        isHidden: 1
+      - tier: 12
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 14
+        count: 3
+        isHidden: 1
+      - tier: 11
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 12
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 13
+        count: 3
+        isHidden: 0
+      - tier: 14
+        count: 2
+        isHidden: 0
+      - tier: 15
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 14
+        count: 3
+        isHidden: 0
+      - tier: 11
+        count: 2
+        isHidden: 0
+      - tier: 13
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 12
+        count: 2
+        isHidden: 0
+      - tier: 10
+        count: 4
+        isHidden: 0
+  - slots:
+    - coinStacks:
+      - tier: 12
+        count: 3
+        isHidden: 1
+      - tier: 12
+        count: 2
+        isHidden: 0
+      - tier: 10
+        count: 1
+        isHidden: 0
+    - coinStacks:
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 2
+        isHidden: 0
+      - tier: 12
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 11
+        count: 3
+        isHidden: 1
+      - tier: 11
+        count: 2
+        isHidden: 0
+      - tier: 10
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 14
+        count: 3
+        isHidden: 1
+      - tier: 14
+        count: 2
+        isHidden: 0
+      - tier: 10
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 15
+        count: 2
+        isHidden: 0
+      - tier: 13
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 13
+        count: 3
+        isHidden: 1
+      - tier: 13
+        count: 2
+        isHidden: 0
+      - tier: 14
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 11
+        count: 3
+        isHidden: 0
+  - slots:
+    - coinStacks:
+      - tier: 11
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 4
+        isHidden: 0
+    - coinStacks:
+      - tier: 11
+        count: 3
+        isHidden: 1
+      - tier: 14
+        count: 3
+        isHidden: 1
+      - tier: 12
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 15
+        count: 3
+        isHidden: 0
+    - coinStacks:
+      - tier: 13
+        count: 3
+        isHidden: 1
+      - tier: 13
+        count: 1
+        isHidden: 0
+      - tier: 15
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 13
+        count: 4
+        isHidden: 0
+    - coinStacks:
+      - tier: 14
+        count: 3
+        isHidden: 1
+      - tier: 12
+        count: 3
+        isHidden: 1
+      - tier: 11
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 12
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 14
+        count: 2
+        isHidden: 0
+  - slots:
+    - coinStacks:
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 11
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 1
+        isHidden: 0
+    - coinStacks:
+      - tier: 13
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 11
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 12
+        count: 3
+        isHidden: 1
+      - tier: 10
+        count: 3
+        isHidden: 1
+      - tier: 12
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 12
+        count: 3
+        isHidden: 1
+      - tier: 13
+        count: 5
+        isHidden: 0
+    - coinStacks:
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 14
+        count: 3
+        isHidden: 1
+      - tier: 15
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 14
+        count: 3
+        isHidden: 1
+      - tier: 15
+        count: 3
+        isHidden: 1
+      - tier: 14
+        count: 2
+        isHidden: 0
+    - coinStacks:
+      - tier: 11
+        count: 3
+        isHidden: 0

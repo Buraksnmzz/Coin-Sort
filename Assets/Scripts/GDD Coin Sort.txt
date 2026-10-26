@@ -1,0 +1,339 @@
+﻿Gameplay:
+Board’da 15 tane slot var. Her slot’un 10 adet coin kısmı var.  Bu slotlara coinler koyuluyor. Aynı tip coinden 10 tane bir slotta toplandığında bu coin merge olup bir üst tier coin oluşuyor. Belirli levellerde unlocked slot sayısı artar. 7 adet unlocked slot ile başlanır. 
+
+
+Board Yapısı
+Board sadece belirli level’lerde değişiyor. Level 28, sonra hep 24 level’de bir board değişiyor. 
+Yani level 28, 52, 76…. de board değişiyor. Unlocked slot sayısı sıfırlanır. 7 slot ile başlanır. 
+Board değiştiğinde şu yapıda coin’ler otomatik olarak board’a veriliyor:
+
+
+Board0: 
+Slot0: 5x2, 3x1 - Slot1: 3x1 - Slot2: 3x2, 4x1 - Slot3: 4x3 - Slot4: 4x3
+
+
+Board2-5 arası aşağıdaki template 1-4 arasını kullanır. Sonraki boardlar sırayla template 3 ve 4 ü kullanır. 
+Template1->
+ Slot0: H11x3, H13x3, 12x3 - Slot1: H10×3 H14×3 11×3 - Slot2: H15×3 12×3
+ Slot3: 13×3 14×2 15×2 - Slot4: 14×3 11×2 13×2 - Slot5: H15×3 10×3 - Slot6: 12×2 10×4
+
+
+Template2->
+ Slot0:H12×3, 12×2, 10x1 - Slot1:H10×3 10×2 12×3 - Slot2:H11×3, 11×2, 10×2
+ Slot3:H14×3, 14×2, 10×2 - Slot4:H15×3, 15×2, 13×3 - Slot5:H13×3, 13×2, 14×3
+ Slot6:H15×3 11×3
+
+
+Template3->
+ Slot0:H11×3, 10×4 - Slot1:H11×3 H14×3 12×2 - Slot2:15×3 - Slot3:H13×3, 13x1, 15×2 Slot4:H10×3, H15×3, 13×4 - Slot5:H14×3, H12×3, 11×2 - Slot6:H12×3, H10×3, 14×2
+
+
+Template4->
+ Slot0:H10×3, H11×3, 10x1 - Slot1:H13×3, H10×3, 11×2 - Slot2:H12×3, H10×3, 12×2 Slot3:H12×3, 13×5 - Slot4:H15×3, H14×3, 15×2 - Slot5:H14×3, H15×3, 14×2 - Slot6:11×3
+
+
+H dediğimiz hidden coin olduğunu belirtiyor. Sonra açıklanıcak bu özel coinler. 
+Bu tablo Board2 için örnek olarak verilmiştir. Board2 için tier10 - tier15 coinler dağıtılacak. Her yeni board’da bu tier sayısı 9 artıyor. Yani Board3 için tier19-24 coinler dağıtılacak. Bu sefer de template’daki 10 dediğimiz 19 olacak. 11 dediğimiz 20 olacak şeklinde ilerleyecek. 
+
+
+Boardlara göre slot’ların unlock olma yapısı şu şekilde olacak: (Slot indexi 0 ile başlar)
+Board1: Level 2,3,5,11,15,18,22,27
+Board2: Level 29, 34, 37, 40, 43, 46, 52
+Board3: 53, 58, 62, 64, 68, 71, 76
+Board4 ve sonrası aynı ritim. Yani önceki board’unkine 24 ekleyerek. Mesela Board4 için: 77, 82, 86, 88, 92, 95, 100
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Level Yapısı
+Progress barımız var. %95 ve üzeri dolduğunda sonraki level’e geçilir ve progress bar sıfırlanır. Yeni level’e geçince board aynı kalır. O anki board’daki en yüksek tier coin’den her oluşturduğumuzda aşağıdaki kurala göre progress bar ilerler:
+Tier4 - Phase10, Tier5 - Phase10, T6 - Phase6 + Phase4(önce 6 faz sonra 4 faz doldurur), T7 - Phase3 + Phase3 + Phase4( önce 3, sonra3, sonra4 fazlık doldurur)
+Bundan sonra yeni board’a geçene kadar hep Tier 7’deki gibi 3,3,4 şeklinde progress dolar. Yani her tier 3 level’da 1 artar. 
+Phase’ın progress doldurma formülü: 100/Phase kadar progress bar’ı doldurur. 3 ise %33 doldurur barı örneğin.
+Yeni high tier oluştuğunda direk %100’e tamamlanır ve sonraki level’a geçilir. 
+Daha küçük tier’lar oluşturulduğunda küçük miktarda ilerler progress bar. Kalan progress’in 1/50’si kadar ilerler. Yani progress 0 iken yüzde 2 artırır. Progress 80 iken yüzde 0.4 artırır. 
+Her 221’inci level den sonra level77 yapısından tekrar eder oyun. 144’lük bir loop yapılır yani. 
+
+
+Deal Algoritması
+
+
+Min tier coin(Coin retirement): Level ve coin tier’lar ilerledikçe board’daki min tier coinler retire edilir. Şu formülle yapılır. 
+X = board’daki max tier coin olsun. max tier coin her değiştiğinde kontrol edilir. 
+
+
+● if (x − 6) is divisible by 9, the minimum is x − 5;
+● if (x − 4) is divisible by 9, it is x − 11;
+● if (x − 5) is divisible by 9, it is x − 12;
+● otherwise it is ⌊(x − 6) / 9⌋ × 9 + 1.
+
+
+Kod olarak da:
+int MinTier(int x) {
+    if (x < 12) return 1;
+    int baseMin = 9 * ((x - 6) / 9) + 1;           // tam sayı bölme: 1, 10, 19, 28...
+    int r = x % 9;
+    return baseMin + ((r == 4 || r == 5) ? 1 : 0); // iç adım sonrası +1
+}
+
+
+Min tier değiştiğinde eğer board’da o tier’dan coin varsa remove edilirler. Bundan sonra deal’lar yeni min tier ile yapılır. Deal kısmı aşağıda
+
+
+Basic Deal:
+Logic olarak unlocked olan ve full olmayan slotlar shuffle yapılır. Bir tane slot random olarak atlanır. 
+Min tier coin’den board’daki max tier-1 coin’e kadar her coinden belirli sayıda küçükten büyüğe doğru sırayla shuffle yapılmış slot listesine aşağıdaki kurala göre dağıtılır. 
+
+
+max tier - 1: 1 ya da 2 tane(random)
+second max tier - 2: 3 ya da 4 tane(random)
+Geri kalan: 3,4 ya da 5 tane(random) 
+
+
+En küçük tier’dan max-1 tier’a kadar bütün tierlardaki coinler bu kurala göre oluşturulur. Sonra min tier ile başlanır ve shuffle edilen slot listesinin ilk slot’una dağıtılır. Örnek:
+Min tier 4 olsun ve deal count 5 oldu diyelim. ShuffledSlot 1. slota 5 tane tier4 coin gidecek. Ama önce slot’a bakılır. Slot’ta 5’ten az yer varsa, available yer kadar coin gider. Mesela bu slotta 3 adet boşluk varsa 5 tane değil 3 tane tier4 gider. 
+
+
+Bu temel deal algoritması. Bunun haricinde başka deal algoritmaları da var:
+
+
+EasyDeal:
+Slotlardan high tier coin’i en üstte bulunan slotlar ayrılır.
+Kalan slotlar random sıralanıp listeye alınır
+Sonra bu high tier coin’i barındıran ve slotun en üstünde bulunduran slotlar kendi sırasına göre bu listeye eklenir. 
+Bu yeni listenin ilk slot’u coin almaz. Atlanacak slot bu ilk slot olur yani
+
+
+
+
+
+
+
+
+Hard Deal: 
+Hardness config diye bir json’ımız var. Bu json’da hard deal_a: 0.13 gibi hard deal chance değeri yazar. 0-1 arası oluşturulan random bir sayı bu değeri geçemezse
+Zorlayıcı bir deal yapılır: en yüksek tier’lı coin’in bulunduğu slot bulunur. Basic deal ile oluşturulan stack coinlerden random birisi bu en yüksek tierlı slot’a yönlendirilir. Eğer başta bu high tier slota gidecek bir coin stack varsa o da buraya gelen coin stack’in ilk target’ına gider. Yani swap ederler. Bu zorlayıcı deal şu durumlarda uygulanmaz: Eğer high tier slot’taki high tier üzerinde zaten başka tierda coin veya hidden coin varsa veya swap yapacak başka slot yoksa uygulanmaz
+0-1 arası oluşturulan random bir sayı bu değeri geçerse
+Kolaylaştırıcı deal yapılır: Eğer orijinal deal’da high tier slot’a bir stack gelecekse, onu başta atlanan slot’a gönderir. 
+
+
+
+
+Auto-merge Deal:
+Bir slot’u 10’a tamamlayacak coinleri seçip o slottaki coinlerin merge olmasını sağlayan bir deal türü. Kaç adet auto merge yapılacağı hardness config içindeki auto_merge değerine bağlı. Bu değer örneğin 1.5 diyelim. Bu durumda 1 tane auto merge kesin, %50 de 2 tane auto merge yapılmaya çalışılacak demek. mesela 2.25 olursa 2 tane kesin %25 olasılıkla 3 tane auto merge yapılmaya çalışılacak demek.  
+Auto merge için slot seçerken slotun şu kuralları sağlaması gerekiyor:
+
+
+* İçinde yalnızca tek coin değeri bulunmalı.
+* Slotta 5–9 coin olmalı. Yani birleştirme için 1–5 coin daha gerekmesi gerekiyor.
+* Coin değeri, oyuncunun en yüksek coin değerinden başlayarak en alttaki iki değere kadar olan en yüksek üç tier'dan biri olmamalı.(mesela high tier 15 ise 15,14 ve 13 tier’lı coinlerin merge olabilecekse bile onlar seçilmez)
+* Mevcut Deal zaten bu slotu 10 coin'e tamamlamıyor olmalı.
+Bundan sonra işlem şöyle oluyor:
+* Önce mevcut deal(basic deal) auto merge oluşturuyor mu ve kaç tane oluşturuyor bakılır. Bu sayı hedefi karşılıyorsa değişiklik yapılmaz.
+* Karşılamıyorsa slotlar normal kendi sırasına göre listelenir. 
+* Listenin sonundaki slot önce denenir.
+* Seçilen slota uygun coin paketi başka bir slottan taşınabiliyorsa, sadece merge için gerekli miktardaki coin o slot’a gider. Yani coinler belli olduktan sonra basic deal’daki gibi davranışlar yapılır. Mesela slot7 auto merge için seçildi diyelim ve oraya 2 tane tier5 coin gerekli diyelim. Basic deal ile de slot5’e 4 tane tier5 coin gidecekti diyelim. Bu durumda bu 4 tane coin 2’ye düşer ve slot7’ye gider. Slot7’ye gidecek olan coin varsa onlar da slot5’e slot5’in kapasitesini aşmayacak kadar gider. Yani kapasite aşmaması gibi şeyler gidecek coinler ve slotlar belirlendikten sonra basic deal’daki gibi çalışır. 
+* O slot’a uygun coin pack yoksa o aday atlanıp bir önceki slot denenir. 
+* Bir Deal için en fazla 4 aday denenir
+
+
+
+
+Smart Deal:
+Basic deal kurallarıyla 50 tane aday deal oluşturur. 
+Sonra logic olarak her bir adayı bir solver ile simüle eder. Simülasyon sonucu her adaya 0-1 arası bir trap point değeri verir. Board 75% ve fazlası doluluğa sahipse uygulanmaz. RC’den açılıp kapatılır.
+
+
+Solver: 
+Bir tree algoritması çalışır. Max 5 derinlikli bir tree olacak. Toplamda max 2500 farklı board durumuna bakılacak. 
+Solver her depth’te possible coin movement’larına bakar. Mesela depth1’de 3 farklı hareket ihtimali var diyelim. Birinciyi seçince 5 tane daha farklı move durumu oluyor diyelim. Her birine bakar. Ve onları yapınca da ne olacağına bakar. Her durumda legal hamleleri ve merge sonucunu kontrol ediyoruz. Yani tree algoritması özet olarak. 
+Trap puanı verilmesi: Örnek ile anlatıyorum. 
+A, B ve C deal candiate ler olsun.
+A şöyle dallansın:
+A1, A2, A3
+A1-> A1a
+A1a-> A1a1, A1a2, A1a3
+
+
+A1a1 node’unda kilit oldu diyelim. A1a2’de de hiç olmasın. 
+Şöyle bir Risk formülü kullanıcaz:
+R = 0.7 x Rmin + 0.3 x Ravg  
+Rmin: child node’lardaki en düşük risk. Ravg: child node’ların ortalama riski
+
+
+R(A1a) şöyle hesaplanır bu durumda:
+A1a1 kilit olduğu için R=1, A1a2 kilit olmadı R=0
+
+
+R(A1a) = 0.7x(0) + 0.3x(1+0)/2 = 0.15
+
+
+Diyelim ki R(A1b) = 0.4 oldu ve R(A1c) = 0 oldu. 
+Bu durumda R(A1) = 0.7x(0) + 0.3x(0.15+0.4+0)/3 = 0.55
+R(A2) de 0.8 olsun
+Bu durumda R(A) = 0.7x(0.55) + 0.3x(0.55+0.8)/2 = 0.58 olur. 
+
+
+Aynı şekilde tüm 50 candidate için böyle trap puanları bulunur. 
+
+
+hardness config’de smart deal aktifse, smart deal değeri olur: "smart_deal_a":0.5
+bu değere en yakın olan candidate seçilir. 
+
+
+
+
+
+
+DDA
+
+
+DDA RC’de açıksa ve current level >= RC’deki dda_start_level(22) ise DDA aktif olur ve hardness tablosu tamamen devre dışı kalır. 
+
+
+Her oyuncu için bir D sayısı tutulur 0-1 arasında. D yüksekse deal zor, düşükse deal kolay olur. 
+D 0.35 ile başlar. İlk 21 levelde 3-5 arası fail olduysa 0.28 ile başlar. 5’den fazla fail olduysa 0.2 ile başlar. D değerine göre 2 farklı zone olur. 
+D 0-0.3 arasındaysa Auto-merge deal türü kullanılır. auto merge değeri olarak da D değerine göre 1-0.25 arası olur. Yani D=0 ise auto merge 1 olur. D=0.3 ise auto merge 0.25 olur. Arası ona göre maplenir.
+D 0.3-1 arası olduğunda Smart Deal yapılır. 50 candidate ile yapılır. smart deal değeri 0.25-1 arasında D değerine göre maplenir. 
+
+
+D değişimi:
+* Booster veya review kullanmadan level tamamladıysa D 0.03 artar.(flawless)
+* Booster veya review kullanarak level tamamladıysan D 0.02 artar.
+* 1 level kaybedersen değişmez
+* Arka arkaya 2 level kaybedersen 0.05 azalır 
+* Arka arkaya 3 level kaybedersen 0.08 azalır. Bundan sonra arka arkaya her kaybetmede 0.08 azalır. Arka arkaya en fazla 0.1 azalır.
+* 3+ fail sonra kazanırsan D, fail serisinden önceki değerin 0.05 altından yukarı çıkamaz. Yani artmış hali ile fail öncesi D-0.05’ten hangisi düşükse o olur. Sonraki level de nefes levelıdır: kazansan bile D artmaz.
+* 7+ gün gelmediysen D −0.05 düşer ama 0.2’den aşağıya düşmez bu etkiyle(Coming back after a break)
+* 5. board’dan itibaren, step-up her board için 1 + 0.15 oranında çarpılır, en fazla x2’ye kadar sınırlıdır. Mesela 7. board için flawless win yapıldıysa D 0.03x(1+0.15*3) kadar artar
+
+
+* EasyPhase: board’da açık slot sayısı coin çeşidinden en az 2 fazlaysa D geçici olarak 0.2'ye çekilir. Bu sürede kazanma artışı 10 kat küçülür, fail’in düşüşü aynı kalır. Tahta sıkışınca eski D’ye ( D - 0.03) dönülür.
+Örnek: Oyuncunun D değeri 0.65 iken yeni slotlar açılıyor ve easy phase başlıyor. Normal D en fazla 0.20'ye indirilirken 0.65 değeri shadow olarak saklanıyor. Oyuncu easy phase'ten çıkana kadar shadow da değişebilir. Çıkışta güncel shadow değerinden 0.03 çıkarılıyor.
+
+
+* Oyuncu bir level denemesinde ilerleme çubuğunun %50'sini geçerse, bir sonraki kazanmayla gelecek D artışı erkenden uygulanır. Oyuncu daha sonra fail olursa bu önceden uygulanmış artış iptal edilir.
+
+
+
+
+Obstacles with DDA
+Obstacle’lar için 0-3 arasında bir obstacle stage var. 
+D 1 iken 2 flawless win yapılırsa obstacle stage 1 artar. 
+Fail olduğunda obstacle stage sıfırlanır. 
+Easy phase’e girildiğinde obstacle stage 1 düşer
+Coming back after a break olduğunda obstacle stage 1 düşer. 
+D 0.3'ün altındayken obstacle olasılıkları normalin %50–100'üne iner.
+
+
+her stage obstacle olasılığını %10 artırır; obstacle tür dağılımı da 0.1 oranında daha zor türlere kayar. obstacle olasılığı üst sınır %90, obstacle tür zorluğu üst sınır %80.
+
+
+Magic DDA
+
+
+Magic DDA açık olduğunda DDA yerine burda bir N değeri var o kullanılır. 0.15 - 1 arasındadır. Level 20’den sonra 0.4 değeri ile başlar. 
+Smart Deal kullanır. Smart deal N şeklinde olur yani. Candidate sayısı 100’dür. 
+N değerinin nasıl değiştiği henüz belli değil. 
+
+
+
+
+Obstacles
+Obstacle coinler var oyunda. Bunlar belirli level’lerde açılıyorlar. Unlock level RC’den kontrol edilecek. Bir deal’da en fazla 3 obstacle deal yapılabilir. Obstacle’ların unlock olduğu levellerde en azından 1 kere deal edilmesi garanti edilecek. 
+
+
+Rainbow: 
+Joker coin, her coin ile stack olur. Stack olduğu an o coin’e dönüşür. Level7’de açılır.
+İlk 2 board’da deal easy ise %20 ihtimalle dağıtılır. 
+İlk 2 board’da deal easy değilse %10 ihtimalle dağıtılır.
+2. board’un sonlarına doğru %5 ihtimalle dağıtılır. Burda 2. board’un son 5 level’i diyebiliriz. 
+Eğer rainbow coin deal olacaksa çift rainbow deal olma olasılığı %30 olur
+Rainbow’un hangi slotlara gideceğinin olasılık hesabı şöyledir. 
+slot0’ın ağırlığı 1, slot1’in ağırlığı 0.5, slot2’nin 0.25 şeklinde yarıya düşerek gider. 
+slot0’ın olasılığı 1/toplam ağırlık, slot1’in 0.5/toplam ağırlık şeklinde hesaplanır. Örneğin 2 slotlu bir board’da slot0’ın olasılığı 1/1.5 olur.
+
+
+Hidden:
+* Her zaman 3 adet kapalı şekilde gelir. Diğer coinlerle birlikte gelir ve onların arkasında kalır. Önündeki coinler başka slot’a gönderilince yani slottaki top coinler olursa reveal oluyorlar. Hangi coin oldukları tabi belli önceden sadece sonradan reveal oluyorlar. Level 13’te açılır. 
+
+
+* Level 364’e kadar %40 ihtimalle dağıtılır. 
+* Level 508’e kadar eğer 10 adet slot unlock ise %20 ihtimal, eğer hepsi unlock ise %50 ihtimalle dağıtılır. 
+* Sonraki level’lerde 10 slot unlock ise %20, hepsi unlock ise %60 ihtimalle deal edilir.
+* Hangi slot’a gideceği %35, %30, %25 ve %10 ihtimalleriyle olur. Yani 1. slot’a gitme ihtimali %35, ikinciye %30 şeklinde. 
+* Hidden coinlerin hangi coin tierlerinden seçileceği şu şekilde: Mevcut dağıtılabilir coinlerden orta tier’daki coin’i favor alacak şekilde olasılık ağırlığı var. Dağılım şöyle:
+Normalize edilmiş aralık: 0.00  0.25  0.50  0.75  1.00
+Ağırlık                            : 0.20  0.80  1.00  0.80  0.20
+
+
+Mesela 10 coin tier’ı var diyelim. İlk 2 tanesinin ağırlığı 0.2 olur. Seçme olasılığı da 0.2 / 3 olur.
+
+
+Sticky:
+* Sticky, bir coin grubunun tek bir parça gibi hareket etmesini sağlar. Level 37’de açılır.  3 farklı boyutta olabilir. 2,3 ve 5. 
+* 2’li sticky olma ihtimali %5, 3’lü ihtimali %90, 5’li ihtimali %5 olacak.
+* Hangi slota gideceği %35, %30, %25 ve %10 ihtimalleriyle olur.
+* Deal olasılığı henüz belli değil
+
+
+Iced:
+* Ice kırılana kadar hareket edemeyen coin/coinler türü. Level 53’te açılır.
+* Üzerinde kaç tane merge gerektiği sayısı olacak. Herhangi bir merge durumunda bu sayı azalacak. 0 olduğunda ice kırılacak ve bu iced olan coin/coinler hareket edebilecek. 
+* Hangi slota gideceği %35, %30, %25 ve %10 ihtimalleriyle olur.
+* her ice deal için ice kırılma sayısı, hangi olasılıkla deal yapılacağı belli değil henüz.
+
+
+Puzzle:
+* Level 88’de açılır. 
+
+
+
+
+
+
+Lock&Key:
+* Level 112’de açılır. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Hatırlatma
+Obstacles with DDA
+Obstacle’lar için 0-3 arasında bir obstacle stage var. 
+D 1 iken 2 flawless win yapılırsa obstacle stage 1 artar. 
+Fail olduğunda obstacle stage sıfırlanır. 
+Easy phase’e girildiğinde obstacle stage 1 düşer
+Coming back after a break olduğunda obstacle stage 1 düşer. 
+D 0.3'ün altındayken obstacle olasılıkları normalin %50–100'üne iner.
+
+
+her stage obstacle olasılığını %10 artırır; obstacle tür dağılımı da 0.1 oranında daha zor türlere kayar. obstacle olasılığı üst sınır %90, obstacle tür zorluğu üst sınır %80.

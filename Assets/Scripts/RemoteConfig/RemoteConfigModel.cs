@@ -36,5 +36,6 @@ namespace GameConfig
         public int CompleteMonthCoinReward = 250;
         public int DailyChallengeUnlockLevel = 30;
         public int NoAdsPackCoinReward { get; set; } = 500;
+        public int UnlockableSlotCoinCost = 600;
     }
 }

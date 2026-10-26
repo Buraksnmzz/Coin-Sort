@@ -1,6 +1,7 @@
 using Collectible;
 using Core.Scripts.Services;
 using General;
+using Gameplay;
 using IAP;
 using UnityEngine;
 using RemoteConfig;
@@ -54,6 +55,7 @@ public class Installer : MonoBehaviour
         ServiceLocator.Register<ICollectibleService>(new CollectibleService());
         ServiceLocator.Register<IIAPService>(new IAPService());
         ServiceLocator.Register<IAdsService>(new AdsService());
+        ServiceLocator.Register<IBoardGenerationService>(new BoardGenerationService());
         var savedDataService = ServiceLocator.GetService<ISavedDataService>();
         if (!savedDataService.GetModel<SettingsModel>().IsNoAds)
             YoogoLabManager.ShowBanner();
@@ -62,14 +64,7 @@ public class Installer : MonoBehaviour
         var soundService = ServiceLocator.GetService<ISoundService>();
         soundService.PlayMusic();
         
-        if (PlayerPrefs.GetInt(StringConstants.IsTutorialShown) == 0)
-        {
-            //uiService.ShowPopup<TutorialGamePresenter>();
-        }
-        else
-        {
-            //uiService.ShowPopup<MainMenuPresenter>();
-        }
+        uiService.ShowPopup<GameplayPresenter>(false, false);
     }
 
 }

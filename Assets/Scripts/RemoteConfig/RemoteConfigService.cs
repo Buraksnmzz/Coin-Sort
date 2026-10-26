@@ -30,6 +30,7 @@ namespace RemoteConfig
                 ApplyString(root, "rate_trigger_levels", v => _remoteConfigModel.RateTriggerLevels = v);
                 ApplyInt(root, "starting_coins", v => _remoteConfigModel.StartingCoins = v);
                 ApplyInt(root, "win_reward_coins", v => _remoteConfigModel.WinRewardCoins = v);
+                ApplyInt(root, "unlockable_slot_coin_cost", v => _remoteConfigModel.UnlockableSlotCoinCost = v);
                 _savedDataService.SaveData(_remoteConfigModel);
                 return true;
             }
