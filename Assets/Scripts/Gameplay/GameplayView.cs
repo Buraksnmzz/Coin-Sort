@@ -15,9 +15,13 @@ namespace Gameplay
         [SerializeField] private Button nextBoardButton;
         [SerializeField] private Button previousBoardButton;
         [SerializeField] private Button dealButton;
+        [SerializeField] private Button autoPlayButton;
+        [SerializeField] private Button stopAutoPlayButton;
 
         public event Action NextBoardButtonClicked;
         public event Action PreviousBoardButtonClicked;
+        public event Action AutoPlayButtonClicked;
+        public event Action StopAutoPlayButtonClicked;
         public event Action<IReadOnlyList<int>> CoinsCreated;
         public event Action<BoardState> BoardStateChanged;
 
@@ -26,6 +30,8 @@ namespace Gameplay
             nextBoardButton.onClick.AddListener(OnNextBoardButtonClicked);
             previousBoardButton.onClick.AddListener(OnPreviousBoardButtonClicked);
             dealButton.onClick.AddListener(OnDealButtonClicked);
+            autoPlayButton.onClick.AddListener(OnAutoPlayButtonClicked);
+            stopAutoPlayButton.onClick.AddListener(OnStopAutoPlayButtonClicked);
         }
 
         public void SetBoard(BoardState boardState)
@@ -52,6 +58,16 @@ namespace Gameplay
             board.UnlockSlotsForLevel(level);
         }
 
+        public void StartAutoPlay()
+        {
+            board.StartAutoPlay();
+        }
+
+        public void StopAutoPlay()
+        {
+            board.StopAutoPlay();
+        }
+
         public void SetLevel(int level, float progress)
         {
             levelText.SetText(level.ToString());
@@ -72,6 +88,16 @@ namespace Gameplay
         private void OnDealButtonClicked()
         {
             board.Deal();
+        }
+
+        private void OnAutoPlayButtonClicked()
+        {
+            AutoPlayButtonClicked?.Invoke();
+        }
+
+        private void OnStopAutoPlayButtonClicked()
+        {
+            StopAutoPlayButtonClicked?.Invoke();
         }
 
         private void OnCoinsCreated(IReadOnlyList<int> tiers)

@@ -18,6 +18,8 @@ namespace Gameplay
 
             View.NextBoardButtonClicked += OnNextBoardButtonClicked;
             View.PreviousBoardButtonClicked += OnPreviousBoardButtonClicked;
+            View.AutoPlayButtonClicked += OnAutoPlayButtonClicked;
+            View.StopAutoPlayButtonClicked += OnStopAutoPlayButtonClicked;
             View.CoinsCreated += OnCoinsCreated;
             View.BoardStateChanged += OnBoardStateChanged;
 
@@ -28,6 +30,8 @@ namespace Gameplay
         {
             View.NextBoardButtonClicked -= OnNextBoardButtonClicked;
             View.PreviousBoardButtonClicked -= OnPreviousBoardButtonClicked;
+            View.AutoPlayButtonClicked -= OnAutoPlayButtonClicked;
+            View.StopAutoPlayButtonClicked -= OnStopAutoPlayButtonClicked;
             View.CoinsCreated -= OnCoinsCreated;
             View.BoardStateChanged -= OnBoardStateChanged;
             base.Cleanup();
@@ -48,6 +52,16 @@ namespace Gameplay
 
             _currentBoardIndex--;
             ShowBoard();
+        }
+
+        private void OnAutoPlayButtonClicked()
+        {
+            View.StartAutoPlay();
+        }
+
+        private void OnStopAutoPlayButtonClicked()
+        {
+            View.StopAutoPlay();
         }
 
         private void ShowBoard()
@@ -84,6 +98,11 @@ namespace Gameplay
 
         private void UpdateLevel(bool levelCompleted)
         {
+            if (levelCompleted)
+            {
+                View.StopAutoPlay();
+            }
+
             var nextBoardIndex = _levelProgressService.GetBoardIndex();
 
             if (nextBoardIndex != _currentBoardIndex)

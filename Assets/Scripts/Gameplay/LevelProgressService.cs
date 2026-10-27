@@ -7,13 +7,13 @@ namespace Gameplay
 {
     public class LevelProgressService : ILevelProgressService
     {
-        private const float LevelCompletionThreshold = 95f;
+        private const float LevelCompletionThreshold = 98f;
         private const int FirstBoardChangeLevel = 28;
         private const int BoardChangeLevelInterval = 24;
         private const int LevelLoopStart = 77;
         private const int LevelLoopEnd = 221;
         private const int LevelLoopLength = 144;
-        private const int SmallTierProgressDivisor = 200;
+        private const int SmallTierProgressDivisor = 500;
 
         private readonly ISavedDataService _savedDataService;
         private readonly LevelProgressModel _model;

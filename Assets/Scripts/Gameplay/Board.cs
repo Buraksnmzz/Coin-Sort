@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
 using UnityEngine;
@@ -22,12 +23,43 @@ namespace Gameplay
         private BoardState _boardState;
         private Slot _selectedSlot;
         private bool _isAnimating;
+        private Coroutine _autoPlayCoroutine;
         private int _currentMaxTier;
+        private float _previousTimeScale;
 
         public event System.Action<IReadOnlyList<int>> CoinsCreated;
         public event System.Action<BoardState> BoardStateChanged;
 
         public int HighestTier => GetHighestTier();
+
+        public void StartAutoPlay()
+        {
+            if (_autoPlayCoroutine != null)
+            {
+                return;
+            }
+
+            if (_selectedSlot != null)
+            {
+                ReturnSelectedCoins();
+            }
+
+            _previousTimeScale = Time.timeScale;
+            Time.timeScale = 2f;
+            _autoPlayCoroutine = StartCoroutine(AutoPlay());
+        }
+
+        public void StopAutoPlay()
+        {
+            if (_autoPlayCoroutine == null)
+            {
+                return;
+            }
+
+            StopCoroutine(_autoPlayCoroutine);
+            _autoPlayCoroutine = null;
+            Time.timeScale = _previousTimeScale;
+        }
 
         public void Initialize(BoardState boardState)
         {
@@ -57,6 +89,8 @@ namespace Gameplay
 
         private void OnDestroy()
         {
+            StopAutoPlay();
+
             foreach (var slot in slots)
             {
                 slot.Clicked -= OnSlotClicked;
@@ -88,6 +122,44 @@ namespace Gameplay
             }
 
             TransferSelectedCoins(slot);
+        }
+
+        private IEnumerator AutoPlay()
+        {
+            while (true)
+            {
+                while (_isAnimating)
+                {
+                    yield return null;
+                }
+
+                var moves = GetAvailableAutoPlayMoves();
+
+                if (moves.Count == 0)
+                {
+                    Deal();
+                    yield return new WaitForSecondsRealtime(0.1f);
+                    continue;
+                }
+
+                var move = moves[Random.Range(0, moves.Count)];
+                OnSlotClicked(move.SourceSlot);
+
+                while (_isAnimating)
+                {
+                    yield return null;
+                }
+
+                if (_selectedSlot == move.SourceSlot)
+                {
+                    OnSlotClicked(move.TargetSlot);
+                }
+
+                while (_isAnimating)
+                {
+                    yield return null;
+                }
+            }
         }
 
         private void SelectTopStack(Slot slot)
@@ -126,6 +198,43 @@ namespace Gameplay
 
             return targetSlot.CoinCount == 0 ||
                    targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == _selectedCoins[0].Tier;
+        }
+
+        private List<AutoPlayMove> GetAvailableAutoPlayMoves()
+        {
+            var moves = new List<AutoPlayMove>();
+
+            foreach (var sourceSlot in slots)
+            {
+                if (!sourceSlot.IsUnlocked || sourceSlot.CoinCount == 0)
+                {
+                    continue;
+                }
+
+                var sourceTopTier = sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Tier;
+                var movesEntireStack = GetTopStackCount(sourceSlot) == sourceSlot.CoinCount;
+
+                foreach (var targetSlot in slots)
+                {
+                    if (sourceSlot == targetSlot || !targetSlot.IsUnlocked || targetSlot.CoinCount >= slotCapacity)
+                    {
+                        continue;
+                    }
+
+                    if (targetSlot.CoinCount == 0 && movesEntireStack)
+                    {
+                        continue;
+                    }
+
+                    if (targetSlot.CoinCount == 0 ||
+                        targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == sourceTopTier)
+                    {
+                        moves.Add(new AutoPlayMove(sourceSlot, targetSlot));
+                    }
+                }
+            }
+
+            return moves;
         }
 
         private void ReturnSelectedCoins()
@@ -573,6 +682,18 @@ namespace Gameplay
             if (_selectedSlot != null)
             {
                 ClearSelection();
+            }
+        }
+
+        private readonly struct AutoPlayMove
+        {
+            public Slot SourceSlot { get; }
+            public Slot TargetSlot { get; }
+
+            public AutoPlayMove(Slot sourceSlot, Slot targetSlot)
+            {
+                SourceSlot = sourceSlot;
+                TargetSlot = targetSlot;
             }
         }
     }
