@@ -27,6 +27,19 @@ public class Installer : MonoBehaviour
         SetOptimalFrameRate();
     }
 
+    private void OnApplicationPause(bool pauseStatus)
+    {
+        if (pauseStatus)
+        {
+            ServiceLocator.GetService<ILevelProgressService>().Flush();
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        ServiceLocator.GetService<ILevelProgressService>().Flush();
+    }
+
     private void SetOptimalFrameRate()
     {
         var memoryMb = SystemInfo.systemMemorySize;

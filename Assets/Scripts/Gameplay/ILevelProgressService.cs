@@ -9,6 +9,9 @@ namespace Gameplay
         float Progress { get; }
         int GetBoardIndex();
         bool InitializeBoard(int boardIndex, int highestTier);
+        BoardState RestoreBoardState(BoardState generatedBoardState);
+        void SaveBoardState(BoardState boardState);
         bool RegisterCoinCreated(int tier);
+        void Flush();
     }
 }

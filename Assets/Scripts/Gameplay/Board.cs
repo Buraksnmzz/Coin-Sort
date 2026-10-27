@@ -19,16 +19,19 @@ namespace Gameplay
         private float transferAnimationDuration = 0.35f;
 
         private readonly List<CoinBase> _selectedCoins = new List<CoinBase>();
+        private BoardState _boardState;
         private Slot _selectedSlot;
         private bool _isAnimating;
 
         public event System.Action<int> CoinCreated;
+        public event System.Action<BoardState> BoardStateChanged;
 
         public int HighestTier => GetHighestTier();
 
         public void Initialize(BoardState boardState)
         {
             ResetSelection();
+            _boardState = boardState;
 
             for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
             {
@@ -248,18 +251,24 @@ namespace Gameplay
 
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)targetSlot.GetNextCoinParent());
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)_selectedSlot.GetNextCoinParent());
-                TryMergeTargetStack(targetSlot);
+                var upgradedTier = TryMergeTargetStack(targetSlot);
                 _selectedCoins.Clear();
                 _selectedSlot = null;
                 _isAnimating = false;
+                BoardStateChanged?.Invoke(CreateBoardState());
+
+                if (upgradedTier > 0)
+                {
+                    CoinCreated?.Invoke(upgradedTier);
+                }
             });
         }
 
-        private void TryMergeTargetStack(Slot targetSlot)
+        private int TryMergeTargetStack(Slot targetSlot)
         {
             if (GetTopStackCount(targetSlot) != MergeStackSize)
             {
-                return;
+                return 0;
             }
 
             var mergedTier = targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier;
@@ -280,7 +289,38 @@ namespace Gameplay
             }
 
             LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)targetSlot.GetNextCoinParent());
-            CoinCreated?.Invoke(upgradedTier);
+            return upgradedTier;
+        }
+
+        private BoardState CreateBoardState()
+        {
+            var slotStates = new List<SlotState>(slots.Length);
+
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                var coins = new List<CoinState>(slots[slotIndex].CoinCount);
+
+                for (var coinIndex = 0; coinIndex < slots[slotIndex].CoinCount; coinIndex++)
+                {
+                    var coin = slots[slotIndex].GetCoin(coinIndex);
+
+                    if (!coin.gameObject.activeSelf)
+                    {
+                        continue;
+                    }
+
+                    coins.Add(new CoinState(coin.Tier, coin.Type));
+                }
+
+                var originalSlotState = _boardState.Slots[slotIndex];
+                slotStates.Add(new SlotState(
+                    originalSlotState.UnlockCoinCost,
+                    originalSlotState.AutomaticUnlockLevel,
+                    originalSlotState.Type,
+                    coins));
+            }
+
+            return new BoardState(_boardState.BoardIndex, slotStates);
         }
 
         private int GetTopStackCount(Slot slot)

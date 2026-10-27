@@ -17,6 +17,7 @@ namespace Gameplay
         public event Action NextBoardButtonClicked;
         public event Action PreviousBoardButtonClicked;
         public event Action<int> CoinCreated;
+        public event Action<BoardState> BoardStateChanged;
 
         private void Start()
         {
@@ -28,6 +29,8 @@ namespace Gameplay
         {
             board.CoinCreated -= OnCoinCreated;
             board.CoinCreated += OnCoinCreated;
+            board.BoardStateChanged -= OnBoardStateChanged;
+            board.BoardStateChanged += OnBoardStateChanged;
             board.Initialize(boardState);
         }
 
@@ -56,6 +59,11 @@ namespace Gameplay
         private void OnCoinCreated(int tier)
         {
             CoinCreated?.Invoke(tier);
+        }
+
+        private void OnBoardStateChanged(BoardState boardState)
+        {
+            BoardStateChanged?.Invoke(boardState);
         }
     }
 }

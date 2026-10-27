@@ -17,10 +17,12 @@ namespace Gameplay
         [SerializeField] private LayoutElement _layoutElement;
 
         public int Tier { get; private set; }
+        public CoinType Type { get; private set; }
 
         public void Initialize(CoinState coinState, CoinSpriteConfig coinSpriteConfig)
         {
             Tier = coinState.Tier;
+            Type = coinState.Type;
             coinImage.sprite = coinSpriteConfig.GetSprite(coinState.Tier);
             tierText.SetText("{0}", coinState.Tier);
 

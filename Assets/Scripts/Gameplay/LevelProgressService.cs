@@ -1,5 +1,6 @@
 using General;
 using SavedData;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Gameplay
@@ -44,8 +45,69 @@ namespace Gameplay
             _model.CurrentBoardIndex = boardIndex;
             _model.HighestCreatedTier = highestTier;
             _model.PhaseIndex = 0;
-            Save();
+            _model.BoardSnapshot = null;
             return true;
+        }
+
+        public BoardState RestoreBoardState(BoardState generatedBoardState)
+        {
+            if (_model.BoardSnapshot == null || _model.BoardSnapshot.BoardIndex != generatedBoardState.BoardIndex)
+            {
+                return generatedBoardState;
+            }
+
+            if (_model.BoardSnapshot.Slots.Count != generatedBoardState.Slots.Count)
+            {
+                throw new System.InvalidOperationException("Saved board slot count does not match the generated board.");
+            }
+
+            var slots = new List<SlotState>(generatedBoardState.Slots.Count);
+
+            for (var slotIndex = 0; slotIndex < generatedBoardState.Slots.Count; slotIndex++)
+            {
+                var generatedSlotState = generatedBoardState.Slots[slotIndex];
+                var savedSlot = _model.BoardSnapshot.Slots[slotIndex];
+                var coins = new List<CoinState>(savedSlot.Coins.Count);
+
+                foreach (var savedCoin in savedSlot.Coins)
+                {
+                    coins.Add(new CoinState(savedCoin.Tier, savedCoin.Type));
+                }
+
+                slots.Add(new SlotState(
+                    generatedSlotState.UnlockCoinCost,
+                    generatedSlotState.AutomaticUnlockLevel,
+                    generatedSlotState.Type,
+                    coins));
+            }
+
+            return new BoardState(generatedBoardState.BoardIndex, slots);
+        }
+
+        public void SaveBoardState(BoardState boardState)
+        {
+            var snapshot = new BoardSnapshot
+            {
+                BoardIndex = boardState.BoardIndex
+            };
+
+            foreach (var slotState in boardState.Slots)
+            {
+                var slotSnapshot = new SlotSnapshot();
+
+                foreach (var coinState in slotState.Coins)
+                {
+                    slotSnapshot.Coins.Add(new CoinSnapshot
+                    {
+                        Tier = coinState.Tier,
+                        Type = coinState.Type
+                    });
+                }
+
+                snapshot.Slots.Add(slotSnapshot);
+            }
+            _model.BoardSnapshot = snapshot;
+            _model.BoardSnapshot = snapshot;
         }
 
         public bool RegisterCoinCreated(int tier)
@@ -60,7 +122,6 @@ namespace Gameplay
                     return true;
                 }
 
-                Save();
                 return false;
             }
 
@@ -69,7 +130,6 @@ namespace Gameplay
                 _model.HighestCreatedTier = tier;
                 _model.PhaseIndex = 0;
                 _model.ProgressPercentage += 100f / GetPhaseCount(tier, _model.PhaseIndex);
-                Save();
                 return false;
             }
 
@@ -96,8 +156,12 @@ namespace Gameplay
                 return true;
             }
 
-            Save();
             return false;
+        }
+
+        public void Flush()
+        {
+            Save();
         }
 
         private void CompleteLevel(bool advancePhase)
@@ -110,7 +174,6 @@ namespace Gameplay
                 _model.PhaseIndex++;
             }
 
-            Save();
         }
 
         private static int GetPhaseCount(int tier, int phaseIndex)
