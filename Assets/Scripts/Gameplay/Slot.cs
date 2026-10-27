@@ -20,6 +20,10 @@ namespace Gameplay
 
         public bool IsUnlocked { get; private set; }
         public int CoinCount => coinParent.childCount;
+        public int AvailableCoinCapacity(int capacity)
+        {
+            return capacity - CoinCount;
+        }
 
         private void Awake()
         {
@@ -46,6 +50,15 @@ namespace Gameplay
         public Transform GetNextCoinParent()
         {
             return coinParent;
+        }
+
+        public void Unlock()
+        {
+            IsUnlocked = true;
+            unlockedRoot.SetActive(true);
+            lockedRoot.SetActive(false);
+            unlockableRoot.SetActive(false);
+            rentableRoot.SetActive(false);
         }
 
         public CoinBase GetCoin(int index)

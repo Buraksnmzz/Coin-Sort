@@ -13,7 +13,7 @@ namespace Gameplay
         private const int LevelLoopStart = 77;
         private const int LevelLoopEnd = 221;
         private const int LevelLoopLength = 144;
-        private const int SmallTierProgressDivisor = 50;
+        private const int SmallTierProgressDivisor = 200;
 
         private readonly ISavedDataService _savedDataService;
         private readonly LevelProgressModel _model;

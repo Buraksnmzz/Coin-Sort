@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,22 +14,24 @@ namespace Gameplay
         [SerializeField] private Image levelProgressFillImage;
         [SerializeField] private Button nextBoardButton;
         [SerializeField] private Button previousBoardButton;
+        [SerializeField] private Button dealButton;
 
         public event Action NextBoardButtonClicked;
         public event Action PreviousBoardButtonClicked;
-        public event Action<int> CoinCreated;
+        public event Action<IReadOnlyList<int>> CoinsCreated;
         public event Action<BoardState> BoardStateChanged;
 
         private void Start()
         {
             nextBoardButton.onClick.AddListener(OnNextBoardButtonClicked);
             previousBoardButton.onClick.AddListener(OnPreviousBoardButtonClicked);
+            dealButton.onClick.AddListener(OnDealButtonClicked);
         }
 
         public void SetBoard(BoardState boardState)
         {
-            board.CoinCreated -= OnCoinCreated;
-            board.CoinCreated += OnCoinCreated;
+            board.CoinsCreated -= OnCoinsCreated;
+            board.CoinsCreated += OnCoinsCreated;
             board.BoardStateChanged -= OnBoardStateChanged;
             board.BoardStateChanged += OnBoardStateChanged;
             board.Initialize(boardState);
@@ -37,6 +40,16 @@ namespace Gameplay
         public int GetHighestBoardTier()
         {
             return board.HighestTier;
+        }
+
+        public BoardState GetCurrentBoardState()
+        {
+            return board.GetCurrentBoardState();
+        }
+
+        public void UnlockSlotsForLevel(int level)
+        {
+            board.UnlockSlotsForLevel(level);
         }
 
         public void SetLevel(int level, float progress)
@@ -56,9 +69,14 @@ namespace Gameplay
             PreviousBoardButtonClicked?.Invoke();
         }
 
-        private void OnCoinCreated(int tier)
+        private void OnDealButtonClicked()
         {
-            CoinCreated?.Invoke(tier);
+            board.Deal();
+        }
+
+        private void OnCoinsCreated(IReadOnlyList<int> tiers)
+        {
+            CoinsCreated?.Invoke(tiers);
         }
 
         private void OnBoardStateChanged(BoardState boardState)

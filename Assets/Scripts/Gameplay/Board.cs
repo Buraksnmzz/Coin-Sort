@@ -22,8 +22,9 @@ namespace Gameplay
         private BoardState _boardState;
         private Slot _selectedSlot;
         private bool _isAnimating;
+        private int _currentMaxTier;
 
-        public event System.Action<int> CoinCreated;
+        public event System.Action<IReadOnlyList<int>> CoinsCreated;
         public event System.Action<BoardState> BoardStateChanged;
 
         public int HighestTier => GetHighestTier();
@@ -32,6 +33,7 @@ namespace Gameplay
         {
             ResetSelection();
             _boardState = boardState;
+            _currentMaxTier = 0;
 
             for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
             {
@@ -48,6 +50,9 @@ namespace Gameplay
                     coin.Initialize(coinState, coinSpriteConfig);
                 }
             }
+
+            UpdateRetiredCoins();
+            BoardStateChanged?.Invoke(CreateBoardState());
         }
 
         private void OnDestroy()
@@ -251,24 +256,22 @@ namespace Gameplay
 
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)targetSlot.GetNextCoinParent());
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)_selectedSlot.GetNextCoinParent());
-                var upgradedTier = TryMergeTargetStack(targetSlot);
+                var upgradedTiers = TryMergeTargetStack(targetSlot);
+                UpdateRetiredCoins();
                 _selectedCoins.Clear();
                 _selectedSlot = null;
                 _isAnimating = false;
                 BoardStateChanged?.Invoke(CreateBoardState());
 
-                if (upgradedTier > 0)
-                {
-                    CoinCreated?.Invoke(upgradedTier);
-                }
+                CoinsCreated?.Invoke(upgradedTiers);
             });
         }
 
-        private int TryMergeTargetStack(Slot targetSlot)
+        private List<int> TryMergeTargetStack(Slot targetSlot)
         {
             if (GetTopStackCount(targetSlot) != MergeStackSize)
             {
-                return 0;
+                return new List<int>();
             }
 
             var mergedTier = targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier;
@@ -289,7 +292,90 @@ namespace Gameplay
             }
 
             LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)targetSlot.GetNextCoinParent());
-            return upgradedTier;
+            var upgradedTiers = new List<int>(upgradedCoinCount);
+
+            for (var coinIndex = 0; coinIndex < upgradedCoinCount; coinIndex++)
+            {
+                upgradedTiers.Add(upgradedTier);
+            }
+
+            return upgradedTiers;
+        }
+
+        public void Deal()
+        {
+            if (_isAnimating)
+            {
+                return;
+            }
+
+            var maxTier = GetHighestTier();
+            var minTier = GetMinTier(maxTier);
+            var availableSlots = GetAvailableSlots();
+
+            if (maxTier <= minTier || availableSlots.Count <= 1)
+            {
+                return;
+            }
+
+            Shuffle(availableSlots);
+            availableSlots.RemoveAt(Random.Range(0, availableSlots.Count));
+
+            var dealableTierCount = maxTier - minTier;
+            var distributionCount = Mathf.Max(dealableTierCount, availableSlots.Count);
+
+            for (var distributionIndex = 0; distributionIndex < distributionCount; distributionIndex++)
+            {
+                var tier = minTier + distributionIndex % dealableTierCount;
+                var slot = availableSlots[distributionIndex % availableSlots.Count];
+                var coinCount = Mathf.Min(GetDealCount(tier, maxTier), slot.AvailableCoinCapacity(slotCapacity));
+
+                for (var coinIndex = 0; coinIndex < coinCount; coinIndex++)
+                {
+                    var coin = Instantiate(coinPrefab, slot.GetNextCoinParent());
+                    coin.Initialize(new CoinState(tier, CoinType.Standard), coinSpriteConfig);
+                }
+            }
+
+            var upgradedTiers = new List<int>();
+
+            foreach (var slot in availableSlots)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)slot.GetNextCoinParent());
+                upgradedTiers.AddRange(TryMergeTargetStack(slot));
+            }
+
+            UpdateRetiredCoins();
+            BoardStateChanged?.Invoke(CreateBoardState());
+            CoinsCreated?.Invoke(upgradedTiers);
+        }
+
+        public BoardState GetCurrentBoardState()
+        {
+            return CreateBoardState();
+        }
+
+        public void UnlockSlotsForLevel(int level)
+        {
+            var hasUnlockedSlot = false;
+
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                var slotState = _boardState.Slots[slotIndex];
+
+                if (!slots[slotIndex].IsUnlocked &&
+                    slotState.AutomaticUnlockLevel > 0 &&
+                    slotState.AutomaticUnlockLevel <= level)
+                {
+                    slots[slotIndex].Unlock();
+                    hasUnlockedSlot = true;
+                }
+            }
+
+            if (hasUnlockedSlot)
+            {
+                BoardStateChanged?.Invoke(CreateBoardState());
+            }
         }
 
         private BoardState CreateBoardState()
@@ -354,11 +440,96 @@ namespace Gameplay
             {
                 for (var coinIndex = 0; coinIndex < slot.CoinCount; coinIndex++)
                 {
-                    highestTier = Mathf.Max(highestTier, slot.GetCoin(coinIndex).Tier);
+                    var coin = slot.GetCoin(coinIndex);
+
+                    if (coin.gameObject.activeSelf)
+                    {
+                        highestTier = Mathf.Max(highestTier, coin.Tier);
+                    }
                 }
             }
 
             return highestTier;
+        }
+
+        private void UpdateRetiredCoins()
+        {
+            var maxTier = GetHighestTier();
+
+            if (maxTier == _currentMaxTier)
+            {
+                return;
+            }
+
+            _currentMaxTier = maxTier;
+            var minTier = GetMinTier(maxTier);
+
+            foreach (var slot in slots)
+            {
+                for (var coinIndex = slot.CoinCount - 1; coinIndex >= 0; coinIndex--)
+                {
+                    var coin = slot.GetCoin(coinIndex);
+
+                    if (coin.Tier < minTier)
+                    {
+                        coin.gameObject.SetActive(false);
+                        Destroy(coin.gameObject);
+                    }
+                }
+
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)slot.GetNextCoinParent());
+            }
+        }
+
+        private List<Slot> GetAvailableSlots()
+        {
+            var availableSlots = new List<Slot>();
+
+            foreach (var slot in slots)
+            {
+                if (slot.IsUnlocked && slot.AvailableCoinCapacity(slotCapacity) > 0)
+                {
+                    availableSlots.Add(slot);
+                }
+            }
+
+            return availableSlots;
+        }
+
+        private static int GetMinTier(int maxTier)
+        {
+            if (maxTier < 12)
+            {
+                return 1;
+            }
+
+            var baseMin = 9 * ((maxTier - 6) / 9) + 1;
+            var remainder = maxTier % 9;
+            return baseMin + (remainder == 4 || remainder == 5 ? 1 : 0);
+        }
+
+        private static int GetDealCount(int tier, int maxTier)
+        {
+            if (tier == maxTier - 1)
+            {
+                return Random.Range(1, 3);
+            }
+
+            if (tier == maxTier - 2)
+            {
+                return Random.Range(3, 5);
+            }
+
+            return Random.Range(3, 6);
+        }
+
+        private static void Shuffle<T>(IList<T> items)
+        {
+            for (var itemIndex = items.Count - 1; itemIndex > 0; itemIndex--)
+            {
+                var randomIndex = Random.Range(0, itemIndex + 1);
+                (items[itemIndex], items[randomIndex]) = (items[randomIndex], items[itemIndex]);
+            }
         }
 
         private void AnimateSelectedCoins(Vector3 offset, float duration, TweenCallback onComplete = null)

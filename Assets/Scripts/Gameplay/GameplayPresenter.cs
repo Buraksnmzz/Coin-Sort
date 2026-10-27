@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using General;
 using UI.General;
 
@@ -17,7 +18,7 @@ namespace Gameplay
 
             View.NextBoardButtonClicked += OnNextBoardButtonClicked;
             View.PreviousBoardButtonClicked += OnPreviousBoardButtonClicked;
-            View.CoinCreated += OnCoinCreated;
+            View.CoinsCreated += OnCoinsCreated;
             View.BoardStateChanged += OnBoardStateChanged;
 
             ShowBoard();
@@ -27,7 +28,7 @@ namespace Gameplay
         {
             View.NextBoardButtonClicked -= OnNextBoardButtonClicked;
             View.PreviousBoardButtonClicked -= OnPreviousBoardButtonClicked;
-            View.CoinCreated -= OnCoinCreated;
+            View.CoinsCreated -= OnCoinsCreated;
             View.BoardStateChanged -= OnBoardStateChanged;
             base.Cleanup();
         }
@@ -58,7 +59,7 @@ namespace Gameplay
 
             if (isNewBoard)
             {
-                _levelProgressService.SaveBoardState(boardState);
+                _levelProgressService.SaveBoardState(View.GetCurrentBoardState());
             }
 
             View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
@@ -69,9 +70,20 @@ namespace Gameplay
             _levelProgressService.SaveBoardState(boardState);
         }
 
-        private void OnCoinCreated(int tier)
+        private void OnCoinsCreated(IReadOnlyList<int> tiers)
         {
-            var levelCompleted = _levelProgressService.RegisterCoinCreated(tier);
+            var levelCompleted = false;
+
+            foreach (var tier in tiers)
+            {
+                levelCompleted |= _levelProgressService.RegisterCoinCreated(tier);
+            }
+
+            UpdateLevel(levelCompleted);
+        }
+
+        private void UpdateLevel(bool levelCompleted)
+        {
             var nextBoardIndex = _levelProgressService.GetBoardIndex();
 
             if (nextBoardIndex != _currentBoardIndex)
@@ -91,6 +103,7 @@ namespace Gameplay
 
             if (levelCompleted)
             {
+                View.UnlockSlotsForLevel(_levelProgressService.CurrentBoardLevel);
                 _levelProgressService.Flush();
             }
         }
