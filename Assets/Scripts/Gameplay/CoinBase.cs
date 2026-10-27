@@ -1,9 +1,11 @@
+using DG.Tweening;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace Gameplay
 {
+    [RequireComponent(typeof(LayoutElement))]
     public class CoinBase : MonoBehaviour
     {
         [SerializeField] private Image coinImage;
@@ -12,9 +14,13 @@ namespace Gameplay
         [SerializeField] private GameObject stickyVisual;
         [SerializeField] private GameObject icedVisual;
         [SerializeField] private TextMeshProUGUI tierText;
+        [SerializeField] private LayoutElement _layoutElement;
+
+        public int Tier { get; private set; }
 
         public void Initialize(CoinState coinState, CoinSpriteConfig coinSpriteConfig)
         {
+            Tier = coinState.Tier;
             coinImage.sprite = coinSpriteConfig.GetSprite(coinState.Tier);
             tierText.SetText("{0}", coinState.Tier);
 
@@ -22,6 +28,16 @@ namespace Gameplay
             rainbowVisual.SetActive(coinState.Type == CoinType.Rainbow);
             stickyVisual.SetActive(coinState.Type == CoinType.Sticky);
             icedVisual.SetActive(coinState.Type == CoinType.Iced);
+        }
+
+        public void SetIgnoredByLayout(bool isIgnored)
+        {
+            _layoutElement.ignoreLayout = isIgnored;
+        }
+
+        public Tween MoveTo(Vector3 position, float duration)
+        {
+            return transform.DOMove(position, duration);
         }
     }
 }

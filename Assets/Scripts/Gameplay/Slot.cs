@@ -18,6 +18,9 @@ namespace Gameplay
 
         public event Action<Slot> Clicked;
 
+        public bool IsUnlocked { get; private set; }
+        public int CoinCount => coinParent.childCount;
+
         private void Awake()
         {
             button.onClick.AddListener(OnClicked);
@@ -26,8 +29,9 @@ namespace Gameplay
         public void Initialize(SlotState slotState)
         {
             ClearCoins();
+            IsUnlocked = slotState.Type == SlotType.Unlocked;
 
-            unlockedRoot.SetActive(slotState.Type == SlotType.Unlocked);
+            unlockedRoot.SetActive(IsUnlocked);
             lockedRoot.SetActive(slotState.Type == SlotType.Locked);
             unlockableRoot.SetActive(slotState.Type == SlotType.Unlockable);
             rentableRoot.SetActive(slotState.Type == SlotType.Rentable);
@@ -42,6 +46,11 @@ namespace Gameplay
         public Transform GetNextCoinParent()
         {
             return coinParent;
+        }
+
+        public CoinBase GetCoin(int index)
+        {
+            return coinParent.GetChild(index).GetComponent<CoinBase>();
         }
 
         private void OnClicked()

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Collectible;
 using GameConfig;
+using Gameplay;
 using Newtonsoft.Json;
 using UI.Settings;
 using UnityEngine;
@@ -28,6 +29,7 @@ namespace SavedData
             var settingsModel = LoadData<SettingsModel>();
             var collectibleModel = LoadData<CollectibleModel>();
             var remoteConfigModel = LoadData<RemoteConfigModel>();
+            var levelProgressModel = LoadData<LevelProgressModel>();
 
         }
         public T GetModel<T>() where T : IModel

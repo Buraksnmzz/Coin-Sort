@@ -6,15 +6,18 @@ namespace Gameplay
     public class GameplayPresenter : BasePresenter<GameplayView>
     {
         private IBoardGenerationService _boardGenerationService;
+        private ILevelProgressService _levelProgressService;
         private int _currentBoardIndex;
 
         protected override void OnInitialize()
         {
             _boardGenerationService = ServiceLocator.GetService<IBoardGenerationService>();
-            _currentBoardIndex = 1;
+            _levelProgressService = ServiceLocator.GetService<ILevelProgressService>();
+            _currentBoardIndex = _levelProgressService.GetBoardIndex();
 
             View.NextBoardButtonClicked += OnNextBoardButtonClicked;
             View.PreviousBoardButtonClicked += OnPreviousBoardButtonClicked;
+            View.CoinCreated += OnCoinCreated;
 
             ShowBoard();
         }
@@ -23,6 +26,7 @@ namespace Gameplay
         {
             View.NextBoardButtonClicked -= OnNextBoardButtonClicked;
             View.PreviousBoardButtonClicked -= OnPreviousBoardButtonClicked;
+            View.CoinCreated -= OnCoinCreated;
             base.Cleanup();
         }
 
@@ -45,15 +49,25 @@ namespace Gameplay
 
         private void ShowBoard()
         {
-            var currentLevel = GetFirstLevel(_currentBoardIndex);
-            var boardState = _boardGenerationService.CreateBoard(_currentBoardIndex, currentLevel);
+            var boardState = _boardGenerationService.CreateBoard(_currentBoardIndex, _levelProgressService.CurrentBoardLevel);
             View.SetBoard(boardState);
-            View.SetLevel(currentLevel, 0f);
+            _levelProgressService.InitializeBoard(_currentBoardIndex, View.GetHighestBoardTier());
+            View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
         }
 
-        private static int GetFirstLevel(int boardIndex)
+        private void OnCoinCreated(int tier)
         {
-            return boardIndex == 1 ? 1 : 28 + (boardIndex - 2) * 24;
+            _levelProgressService.RegisterCoinCreated(tier);
+            var nextBoardIndex = _levelProgressService.GetBoardIndex();
+
+            if (nextBoardIndex != _currentBoardIndex)
+            {
+                _currentBoardIndex = nextBoardIndex;
+                ShowBoard();
+                return;
+            }
+
+            View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
         }
     }
 }
