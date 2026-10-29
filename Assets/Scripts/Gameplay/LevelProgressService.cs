@@ -7,13 +7,14 @@ namespace Gameplay
 {
     public class LevelProgressService : ILevelProgressService
     {
-        private const float LevelCompletionThreshold = 98f;
+        private const float LevelCompletionThreshold = 95f;
         private const int FirstBoardChangeLevel = 28;
         private const int BoardChangeLevelInterval = 24;
         private const int LevelLoopStart = 77;
         private const int LevelLoopEnd = 221;
         private const int LevelLoopLength = 144;
-        private const int SmallTierProgressDivisor = 500;
+        private const int FirstLevelSmallTierProgressDivisor = 50;
+        private const int SubsequentLevelSmallTierProgressDivisor = 200;
 
         private readonly ISavedDataService _savedDataService;
         private readonly LevelProgressModel _model;
@@ -114,7 +115,7 @@ namespace Gameplay
         {
             if (tier < 4)
             {
-                _model.ProgressPercentage += (100f - _model.ProgressPercentage) / SmallTierProgressDivisor;
+                _model.ProgressPercentage += (100f - _model.ProgressPercentage) / GetSmallTierProgressDivisor();
 
                 if (_model.ProgressPercentage >= LevelCompletionThreshold)
                 {
@@ -147,7 +148,7 @@ namespace Gameplay
             }
             else
             {
-                _model.ProgressPercentage += (100f - _model.ProgressPercentage) / SmallTierProgressDivisor;
+                _model.ProgressPercentage += (100f - _model.ProgressPercentage) / GetSmallTierProgressDivisor();
             }
 
             if (_model.ProgressPercentage >= LevelCompletionThreshold)
@@ -180,15 +181,29 @@ namespace Gameplay
         {
             if (tier <= 5)
             {
-                return 10;
+                return 15;
             }
 
             if (tier == 6)
             {
-                return phaseIndex % 2 == 0 ? 6 : 4;
+                return phaseIndex % 2 == 0 ? 7 : 6;
             }
 
-            return phaseIndex % 3 == 2 ? 4 : 3;
+            if (phaseIndex % 3 == 0)
+                return 4;
+            
+            if(phaseIndex % 3 == 1)
+                return 2;
+            
+            return 6;
+            //return phaseIndex % 3 == 2 ? 5 : 4;
+        }
+
+        private int GetSmallTierProgressDivisor()
+        {
+            return _model.CurrentLevel == 1
+                ? FirstLevelSmallTierProgressDivisor
+                : SubsequentLevelSmallTierProgressDivisor;
         }
 
         private static int GetBoardLevel(int level)

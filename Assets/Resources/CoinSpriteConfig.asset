@@ -13,16 +13,17 @@ MonoBehaviour:
   m_Name: CoinSpriteConfig
   m_EditorClassIdentifier: 
   sprites:
-  - {fileID: 21300000, guid: 0243409aa33974bf89cafe60db220a93, type: 3}
-  - {fileID: 21300000, guid: 8d88d33457c2a422494ad9cf74876523, type: 3}
-  - {fileID: 21300000, guid: e2377ae00b21246a69b7976ab5d51a5f, type: 3}
-  - {fileID: 21300000, guid: 1eaa36e2147e44430b632a0eb5fa3874, type: 3}
-  - {fileID: 21300000, guid: 241848bfe8f9844839f6aba4961ec8e4, type: 3}
-  - {fileID: 21300000, guid: ae99cc4bcf3eb4ab3b5fb3a90b7583d5, type: 3}
-  - {fileID: 21300000, guid: 913a66f66150547a7bfd2a68420e2054, type: 3}
-  - {fileID: 21300000, guid: 6da33865083514345a9674417c6217ca, type: 3}
-  - {fileID: 21300000, guid: bbf0cfb7067224c45923057e50349d39, type: 3}
-  - {fileID: 21300000, guid: 1e1fd0d197796486584fd44948667f0b, type: 3}
-  - {fileID: 21300000, guid: e3632ee9083fb4401b7622b96d73a41d, type: 3}
-  - {fileID: 21300000, guid: 3e31c14a7ae85459595cd6656637fc58, type: 3}
-  - {fileID: 21300000, guid: a6f7710a1eff04531b6377c8ef452315, type: 3}
+  - {fileID: 21300000, guid: 0935787a576a1402484748d58f858db3, type: 3}
+  - {fileID: 21300000, guid: 518e1d945319a48a79bd1d80a13fefdf, type: 3}
+  - {fileID: 21300000, guid: 93d217acbe5c648a6b06e3b32475ef2c, type: 3}
+  - {fileID: 21300000, guid: 6793c5f4d5d784c2c89a39a092f82faa, type: 3}
+  - {fileID: 21300000, guid: 349f4d184f8ea4009abc8be205f9fe48, type: 3}
+  - {fileID: 21300000, guid: 7678b69af77754fdcad219e3b328572c, type: 3}
+  - {fileID: 21300000, guid: bae0b8151b8c947679dcb7b75b6d629a, type: 3}
+  - {fileID: 21300000, guid: 92d854081f9f449239b7426ad080c135, type: 3}
+  - {fileID: 21300000, guid: 692ad3e2f40214444a78dd1cd766d526, type: 3}
+  - {fileID: 21300000, guid: c12a996b8d3e043129a0d2747bb46249, type: 3}
+  - {fileID: 21300000, guid: 70bc7543a18924b2db2352f8a3bfb311, type: 3}
+  - {fileID: 21300000, guid: a53590d2df08848bebf37f86c9fafdc0, type: 3}
+  - {fileID: 21300000, guid: 6c0ed2f68cf5c4120bb2acb684682aa5, type: 3}
+  - {fileID: 21300000, guid: f34fa305f9c984a3a8defd30f594f152, type: 3}

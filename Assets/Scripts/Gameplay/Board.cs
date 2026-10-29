@@ -45,7 +45,7 @@ namespace Gameplay
             }
 
             _previousTimeScale = Time.timeScale;
-            Time.timeScale = 2f;
+            Time.timeScale = 10f;
             _autoPlayCoroutine = StartCoroutine(AutoPlay());
         }
 
@@ -430,7 +430,8 @@ namespace Gameplay
             Shuffle(availableSlots);
             availableSlots.RemoveAt(Random.Range(0, availableSlots.Count));
 
-            var dealableTierCount = maxTier - minTier;
+            var highestDealableTier = maxTier == 4 ? maxTier : maxTier - 1;
+            var dealableTierCount = highestDealableTier - minTier + 1;
             var distributionCount = Mathf.Max(dealableTierCount, availableSlots.Count);
 
             for (var distributionIndex = 0; distributionIndex < distributionCount; distributionIndex++)
@@ -619,6 +620,11 @@ namespace Gameplay
 
         private static int GetDealCount(int tier, int maxTier)
         {
+            if (maxTier == 4 && tier == maxTier)
+            {
+                return 1;
+            }
+
             if (tier == maxTier - 1)
             {
                 return Random.Range(1, 3);
