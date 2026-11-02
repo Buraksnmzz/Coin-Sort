@@ -37,5 +37,6 @@ namespace GameConfig
         public int DailyChallengeUnlockLevel = 30;
         public int NoAdsPackCoinReward { get; set; } = 500;
         public int UnlockableSlotCoinCost = 600;
+        public int ShuffleCost = 100;
     }
 }

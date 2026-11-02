@@ -465,6 +465,262 @@ namespace Gameplay
             return CreateBoardState();
         }
 
+        public void ShuffleBoard()
+        {
+            if (_isAnimating)
+            {
+                return;
+            }
+
+            StopAutoPlay();
+            ResetSelection();
+
+            var shuffledSlots = new List<List<CoinState>>(slots.Length);
+            var obstacleGroups = new List<List<CoinState>>();
+            var coinCountsByTier = new Dictionary<int, List<CoinState>>();
+
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                shuffledSlots.Add(new List<CoinState>());
+                List<CoinState> obstacleGroup = null;
+
+                for (var coinIndex = 0; coinIndex < slots[slotIndex].CoinCount; coinIndex++)
+                {
+                    var coin = slots[slotIndex].GetCoin(coinIndex);
+                    var coinState = new CoinState(coin.Tier, coin.Type);
+
+                    if (coin.Type != CoinType.Standard)
+                    {
+                        if (obstacleGroup == null)
+                        {
+                            obstacleGroup = new List<CoinState>();
+                            obstacleGroups.Add(obstacleGroup);
+                        }
+
+                        obstacleGroup.Add(coinState);
+                        continue;
+                    }
+
+                    obstacleGroup = null;
+
+                    if (!coinCountsByTier.TryGetValue(coin.Tier, out var coins))
+                    {
+                        coins = new List<CoinState>();
+                        coinCountsByTier.Add(coin.Tier, coins);
+                    }
+
+                    coins.Add(coinState);
+                }
+            }
+
+            DistributeObstacleGroups(obstacleGroups, shuffledSlots);
+            TrimLowestTierCoins(coinCountsByTier);
+            DistributeCompleteStacks(coinCountsByTier, shuffledSlots);
+            DistributeRemainingCoins(coinCountsByTier, shuffledSlots);
+            Initialize(CreateShuffledBoardState(shuffledSlots));
+        }
+
+        private void DistributeObstacleGroups(
+            List<List<CoinState>> obstacleGroups,
+            List<List<CoinState>> shuffledSlots)
+        {
+            Shuffle(obstacleGroups);
+
+            foreach (var obstacleGroup in obstacleGroups)
+            {
+                var slotIndices = GetUnlockedSlotIndices();
+                Shuffle(slotIndices);
+
+                foreach (var slotIndex in slotIndices)
+                {
+                    if (shuffledSlots[slotIndex].Count + obstacleGroup.Count > slotCapacity)
+                    {
+                        continue;
+                    }
+
+                    shuffledSlots[slotIndex].AddRange(obstacleGroup);
+                    break;
+                }
+            }
+        }
+
+        private static void TrimLowestTierCoins(Dictionary<int, List<CoinState>> coinCountsByTier)
+        {
+            var lowestTiers = new List<int>(coinCountsByTier.Keys);
+            lowestTiers.Sort();
+
+            var tierCount = Mathf.Min(2, lowestTiers.Count);
+
+            for (var tierIndex = 0; tierIndex < tierCount; tierIndex++)
+            {
+                var coins = coinCountsByTier[lowestTiers[tierIndex]];
+
+                if (coins.Count > MergeStackSize)
+                {
+                    coins.RemoveRange(MergeStackSize, coins.Count - MergeStackSize);
+                }
+            }
+        }
+
+        private void DistributeCompleteStacks(
+            Dictionary<int, List<CoinState>> coinCountsByTier,
+            List<List<CoinState>> shuffledSlots)
+        {
+            var tiers = new List<int>(coinCountsByTier.Keys);
+            tiers.Sort((firstTier, secondTier) =>
+            {
+                var countComparison = coinCountsByTier[secondTier].Count.CompareTo(coinCountsByTier[firstTier].Count);
+                return countComparison != 0 ? countComparison : firstTier.CompareTo(secondTier);
+            });
+
+            foreach (var tier in tiers)
+            {
+                var coins = coinCountsByTier[tier];
+
+                while (coins.Count >= MergeStackSize)
+                {
+                    var slotIndex = GetMostAvailableSlotIndex(shuffledSlots, MergeStackSize);
+
+                    if (slotIndex < 0)
+                    {
+                        return;
+                    }
+
+                    shuffledSlots[slotIndex].AddRange(coins.GetRange(0, MergeStackSize));
+                    coins.RemoveRange(0, MergeStackSize);
+                }
+            }
+        }
+
+        private void DistributeRemainingCoins(
+            Dictionary<int, List<CoinState>> coinCountsByTier,
+            List<List<CoinState>> shuffledSlots)
+        {
+            var tiers = new List<int>(coinCountsByTier.Keys);
+            tiers.Sort((firstTier, secondTier) => secondTier.CompareTo(firstTier));
+
+            foreach (var tier in tiers)
+            {
+                foreach (var coin in coinCountsByTier[tier])
+                {
+                    var slotIndex = GetBestSlotIndex(coin, shuffledSlots);
+
+                    if (slotIndex >= 0)
+                    {
+                        shuffledSlots[slotIndex].Add(coin);
+                    }
+                }
+            }
+        }
+
+        private List<int> GetUnlockedSlotIndices()
+        {
+            var slotIndices = new List<int>();
+
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                if (slots[slotIndex].IsUnlocked)
+                {
+                    slotIndices.Add(slotIndex);
+                }
+            }
+
+            return slotIndices;
+        }
+
+        private int GetMostAvailableSlotIndex(List<List<CoinState>> shuffledSlots, int requiredCapacity)
+        {
+            var selectedSlotIndex = -1;
+            var largestAvailableCapacity = -1;
+
+            foreach (var slotIndex in GetUnlockedSlotIndices())
+            {
+                var availableCapacity = slotCapacity - shuffledSlots[slotIndex].Count;
+
+                if (availableCapacity < requiredCapacity || availableCapacity <= largestAvailableCapacity)
+                {
+                    continue;
+                }
+
+                largestAvailableCapacity = availableCapacity;
+                selectedSlotIndex = slotIndex;
+            }
+
+            return selectedSlotIndex;
+        }
+
+        private int GetBestSlotIndex(CoinState coin, List<List<CoinState>> shuffledSlots)
+        {
+            var selectedSlotIndex = -1;
+            var bestScore = int.MaxValue;
+
+            foreach (var slotIndex in GetUnlockedSlotIndices())
+            {
+                var coins = shuffledSlots[slotIndex];
+
+                if (coins.Count >= slotCapacity)
+                {
+                    continue;
+                }
+
+                var score = GetSlotScore(coin, coins);
+
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    selectedSlotIndex = slotIndex;
+                }
+            }
+
+            return selectedSlotIndex;
+        }
+
+        private static int GetSlotScore(CoinState coin, List<CoinState> slotCoins)
+        {
+            var hasMatchingTier = false;
+            var distinctTierCount = 0;
+            var tiers = new HashSet<int>();
+
+            foreach (var slotCoin in slotCoins)
+            {
+                hasMatchingTier |= slotCoin.Tier == coin.Tier;
+
+                if (tiers.Add(slotCoin.Tier))
+                {
+                    distinctTierCount++;
+                }
+            }
+
+            if (hasMatchingTier)
+            {
+                return 0;
+            }
+
+            if (slotCoins.Count == 0)
+            {
+                return 1;
+            }
+
+            return distinctTierCount == 1 ? 2 : 3;
+        }
+
+        private BoardState CreateShuffledBoardState(List<List<CoinState>> shuffledSlots)
+        {
+            var slotStates = new List<SlotState>(slots.Length);
+
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                var slotState = _boardState.Slots[slotIndex];
+                slotStates.Add(new SlotState(
+                    slotState.UnlockCoinCost,
+                    slotState.AutomaticUnlockLevel,
+                    slotState.Type,
+                    shuffledSlots[slotIndex]));
+            }
+
+            return new BoardState(_boardState.BoardIndex, slotStates);
+        }
+
         public bool HasAvailableMoves()
         {
             foreach (var sourceSlot in slots)

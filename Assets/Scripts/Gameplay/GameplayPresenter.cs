@@ -1,8 +1,12 @@
 using System.Collections.Generic;
+using Collectible;
+using GameConfig;
 using General;
 using General.EventDispatcher;
 using OutOfMoves;
+using SavedData;
 using UI.General;
+using UI.Shop;
 
 namespace Gameplay
 {
@@ -11,6 +15,7 @@ namespace Gameplay
         private IBoardGenerationService _boardGenerationService;
         private ILevelProgressService _levelProgressService;
         private IEventDispatcherService _eventDispatcherService;
+        private ISavedDataService _savedDataService;
         private int _currentBoardIndex;
         private BoardState _levelStartSnapshot;
 
@@ -19,6 +24,7 @@ namespace Gameplay
             _boardGenerationService = ServiceLocator.GetService<IBoardGenerationService>();
             _levelProgressService = ServiceLocator.GetService<ILevelProgressService>();
             _eventDispatcherService = ServiceLocator.GetService<IEventDispatcherService>();
+            _savedDataService = ServiceLocator.GetService<ISavedDataService>();
             _currentBoardIndex = _levelProgressService.GetBoardIndex();
 
             View.NextBoardButtonClicked += OnNextBoardButtonClicked;
@@ -28,6 +34,7 @@ namespace Gameplay
             View.CoinsCreated += OnCoinsCreated;
             View.BoardStateChanged += OnBoardStateChanged;
             _eventDispatcherService.AddListener<RestartLevelSignal>(OnRestartLevel);
+            _eventDispatcherService.AddListener<ShuffleBoardSignal>(OnShuffleBoard);
 
             ShowBoard();
             CaptureLevelStartSnapshot();
@@ -42,6 +49,7 @@ namespace Gameplay
             View.CoinsCreated -= OnCoinsCreated;
             View.BoardStateChanged -= OnBoardStateChanged;
             _eventDispatcherService.RemoveListener<RestartLevelSignal>(OnRestartLevel);
+            _eventDispatcherService.RemoveListener<ShuffleBoardSignal>(OnShuffleBoard);
             base.Cleanup();
         }
 
@@ -149,6 +157,26 @@ namespace Gameplay
             _levelProgressService.SaveBoardState(View.GetCurrentBoardState());
             View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
             _levelProgressService.Flush();
+        }
+
+        private void OnShuffleBoard(ShuffleBoardSignal signal)
+        {
+            var collectibleModel = _savedDataService.GetModel<CollectibleModel>();
+            var shuffleCost = _savedDataService.GetModel<RemoteConfigModel>().ShuffleCost;
+
+            if (collectibleModel.TotalCoins <= shuffleCost)
+            {
+                return;
+            }
+
+            collectibleModel.TotalCoins -= shuffleCost;
+            _savedDataService.SaveData(collectibleModel);
+            _eventDispatcherService.Dispatch(new CoinChangedSignal());
+            View.ShuffleBoard();
+            _levelProgressService.SaveBoardState(View.GetCurrentBoardState());
+            _levelProgressService.Flush();
+            ServiceLocator.GetService<IUIService>().HidePopup<OutOfMovesPresenter>();
+            ServiceLocator.GetService<IUIService>().HidePopup<LosePresenter>();
         }
 
         private void CaptureLevelStartSnapshot()

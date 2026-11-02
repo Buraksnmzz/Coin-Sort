@@ -73,6 +73,11 @@ namespace Gameplay
             board.StopAutoPlay();
         }
 
+        public void ShuffleBoard()
+        {
+            board.ShuffleBoard();
+        }
+
         public void SetLevel(int level, float progress)
         {
             levelText.SetText(level.ToString());

@@ -31,6 +31,7 @@ namespace RemoteConfig
                 ApplyInt(root, "starting_coins", v => _remoteConfigModel.StartingCoins = v);
                 ApplyInt(root, "win_reward_coins", v => _remoteConfigModel.WinRewardCoins = v);
                 ApplyInt(root, "unlockable_slot_coin_cost", v => _remoteConfigModel.UnlockableSlotCoinCost = v);
+                ApplyInt(root, "shuffle_cost", v => _remoteConfigModel.ShuffleCost = v);
                 _savedDataService.SaveData(_remoteConfigModel);
                 return true;
             }
