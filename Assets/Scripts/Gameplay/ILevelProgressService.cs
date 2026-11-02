@@ -11,6 +11,7 @@ namespace Gameplay
         bool InitializeBoard(int boardIndex, int highestTier);
         BoardState RestoreBoardState(BoardState generatedBoardState);
         void SaveBoardState(BoardState boardState);
+        void ResetLevelProgress();
         bool RegisterCoinCreated(int tier);
         void Flush();
     }

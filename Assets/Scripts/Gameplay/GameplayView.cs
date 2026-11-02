@@ -53,6 +53,11 @@ namespace Gameplay
             return board.GetCurrentBoardState();
         }
 
+        public bool HasAvailableMoves()
+        {
+            return board.HasAvailableMoves();
+        }
+
         public void UnlockSlotsForLevel(int level)
         {
             board.UnlockSlotsForLevel(level);

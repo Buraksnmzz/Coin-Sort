@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using General;
+using General.EventDispatcher;
+using OutOfMoves;
 using UI.General;
 
 namespace Gameplay
@@ -8,12 +10,15 @@ namespace Gameplay
     {
         private IBoardGenerationService _boardGenerationService;
         private ILevelProgressService _levelProgressService;
+        private IEventDispatcherService _eventDispatcherService;
         private int _currentBoardIndex;
+        private BoardState _levelStartSnapshot;
 
         protected override void OnInitialize()
         {
             _boardGenerationService = ServiceLocator.GetService<IBoardGenerationService>();
             _levelProgressService = ServiceLocator.GetService<ILevelProgressService>();
+            _eventDispatcherService = ServiceLocator.GetService<IEventDispatcherService>();
             _currentBoardIndex = _levelProgressService.GetBoardIndex();
 
             View.NextBoardButtonClicked += OnNextBoardButtonClicked;
@@ -22,8 +27,10 @@ namespace Gameplay
             View.StopAutoPlayButtonClicked += OnStopAutoPlayButtonClicked;
             View.CoinsCreated += OnCoinsCreated;
             View.BoardStateChanged += OnBoardStateChanged;
+            _eventDispatcherService.AddListener<RestartLevelSignal>(OnRestartLevel);
 
             ShowBoard();
+            CaptureLevelStartSnapshot();
         }
 
         public override void Cleanup()
@@ -34,6 +41,7 @@ namespace Gameplay
             View.StopAutoPlayButtonClicked -= OnStopAutoPlayButtonClicked;
             View.CoinsCreated -= OnCoinsCreated;
             View.BoardStateChanged -= OnBoardStateChanged;
+            _eventDispatcherService.RemoveListener<RestartLevelSignal>(OnRestartLevel);
             base.Cleanup();
         }
 
@@ -94,6 +102,11 @@ namespace Gameplay
             }
 
             UpdateLevel(levelCompleted);
+
+            if (!View.HasAvailableMoves())
+            {
+                ServiceLocator.GetService<IUIService>().ShowPopup<OutOfMovesPresenter>();
+            }
         }
 
         private void UpdateLevel(bool levelCompleted)
@@ -112,6 +125,7 @@ namespace Gameplay
 
                 if (levelCompleted)
                 {
+                    CaptureLevelStartSnapshot();
                     _levelProgressService.Flush();
                 }
 
@@ -123,8 +137,46 @@ namespace Gameplay
             if (levelCompleted)
             {
                 View.UnlockSlotsForLevel(_levelProgressService.CurrentBoardLevel);
+                CaptureLevelStartSnapshot();
                 _levelProgressService.Flush();
             }
+        }
+
+        private void OnRestartLevel(RestartLevelSignal signal)
+        {
+            _levelProgressService.ResetLevelProgress();
+            View.SetBoard(CloneBoardState(_levelStartSnapshot));
+            _levelProgressService.SaveBoardState(View.GetCurrentBoardState());
+            View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
+            _levelProgressService.Flush();
+        }
+
+        private void CaptureLevelStartSnapshot()
+        {
+            _levelStartSnapshot = CloneBoardState(View.GetCurrentBoardState());
+        }
+
+        private static BoardState CloneBoardState(BoardState boardState)
+        {
+            var slots = new List<SlotState>(boardState.Slots.Count);
+
+            foreach (var slotState in boardState.Slots)
+            {
+                var coins = new List<CoinState>(slotState.Coins.Count);
+
+                foreach (var coinState in slotState.Coins)
+                {
+                    coins.Add(new CoinState(coinState.Tier, coinState.Type));
+                }
+
+                slots.Add(new SlotState(
+                    slotState.UnlockCoinCost,
+                    slotState.AutomaticUnlockLevel,
+                    slotState.Type,
+                    coins));
+            }
+
+            return new BoardState(boardState.BoardIndex, slots);
         }
     }
 }

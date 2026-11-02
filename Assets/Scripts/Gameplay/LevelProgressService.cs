@@ -111,6 +111,11 @@ namespace Gameplay
             _model.BoardSnapshot = snapshot;
         }
 
+        public void ResetLevelProgress()
+        {
+            _model.ProgressPercentage = 0f;
+        }
+
         public bool RegisterCoinCreated(int tier)
         {
             if (tier < 4)

@@ -61,6 +61,17 @@ namespace Gameplay
             rentableRoot.SetActive(false);
         }
 
+        public void SetUnlockable(int unlockCoinCost, int automaticUnlockLevel)
+        {
+            IsUnlocked = false;
+            unlockedRoot.SetActive(false);
+            lockedRoot.SetActive(false);
+            unlockableRoot.SetActive(true);
+            rentableRoot.SetActive(false);
+            unlockCoinCostText.SetText("{0}", unlockCoinCost);
+            automaticUnlockLevelText.SetText("{0}", automaticUnlockLevel);
+        }
+
         public CoinBase GetCoin(int index)
         {
             return coinParent.GetChild(index).GetComponent<CoinBase>();

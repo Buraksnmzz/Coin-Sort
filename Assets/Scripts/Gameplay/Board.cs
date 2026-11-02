@@ -465,6 +465,35 @@ namespace Gameplay
             return CreateBoardState();
         }
 
+        public bool HasAvailableMoves()
+        {
+            foreach (var sourceSlot in slots)
+            {
+                if (!sourceSlot.IsUnlocked || sourceSlot.CoinCount == 0)
+                {
+                    continue;
+                }
+
+                var sourceTopTier = sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Tier;
+
+                foreach (var targetSlot in slots)
+                {
+                    if (sourceSlot == targetSlot || !targetSlot.IsUnlocked || targetSlot.CoinCount >= slotCapacity)
+                    {
+                        continue;
+                    }
+
+                    if (targetSlot.CoinCount == 0 ||
+                        targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == sourceTopTier)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public void UnlockSlotsForLevel(int level)
         {
             var hasUnlockedSlot = false;
@@ -478,14 +507,59 @@ namespace Gameplay
                     slotState.AutomaticUnlockLevel <= level)
                 {
                     slots[slotIndex].Unlock();
+                    UpdateSlotType(slotIndex, SlotType.Unlocked, slotState.UnlockCoinCost);
                     hasUnlockedSlot = true;
                 }
             }
 
             if (hasUnlockedSlot)
             {
+                SetNextLockedSlotUnlockable();
                 BoardStateChanged?.Invoke(CreateBoardState());
             }
+        }
+
+        private void SetNextLockedSlotUnlockable()
+        {
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                var slotState = _boardState.Slots[slotIndex];
+
+                if (slotState.Type != SlotType.Locked)
+                {
+                    continue;
+                }
+
+                var unlockCoinCost = GetUnlockCoinCost();
+                slots[slotIndex].SetUnlockable(unlockCoinCost, slotState.AutomaticUnlockLevel);
+                UpdateSlotType(slotIndex, SlotType.Unlockable, unlockCoinCost);
+                return;
+            }
+        }
+
+        private int GetUnlockCoinCost()
+        {
+            foreach (var slotState in _boardState.Slots)
+            {
+                if (slotState.UnlockCoinCost > 0)
+                {
+                    return slotState.UnlockCoinCost;
+                }
+            }
+
+            return 0;
+        }
+
+        private void UpdateSlotType(int slotIndex, SlotType slotType, int unlockCoinCost)
+        {
+            var slotStates = new List<SlotState>(_boardState.Slots);
+            var slotState = slotStates[slotIndex];
+            slotStates[slotIndex] = new SlotState(
+                unlockCoinCost,
+                slotState.AutomaticUnlockLevel,
+                slotType,
+                slotState.Coins);
+            _boardState = new BoardState(_boardState.BoardIndex, slotStates);
         }
 
         private BoardState CreateBoardState()
