@@ -17,6 +17,9 @@ namespace Gameplay
         [SerializeField] private Button dealButton;
         [SerializeField] private Button autoPlayButton;
         [SerializeField] private Button stopAutoPlayButton;
+        [SerializeField] private Button debugEasyDealButton;
+        [SerializeField] private Button debugBasicDealButton;
+        [SerializeField] private Button debugHardDealButton;
 
         public event Action NextBoardButtonClicked;
         public event Action PreviousBoardButtonClicked;
@@ -32,6 +35,8 @@ namespace Gameplay
             dealButton.onClick.AddListener(OnDealButtonClicked);
             autoPlayButton.onClick.AddListener(OnAutoPlayButtonClicked);
             stopAutoPlayButton.onClick.AddListener(OnStopAutoPlayButtonClicked);
+            debugEasyDealButton.onClick.AddListener(OnDebugEasyDealButtonClicked);
+            debugBasicDealButton.onClick.AddListener(OnDebugBasicDealButtonClicked);
         }
 
         public void SetBoard(BoardState boardState)
@@ -58,6 +63,11 @@ namespace Gameplay
             return board.HasAvailableMoves();
         }
 
+        public bool CanContinuePlaying()
+        {
+            return board.CanContinuePlaying();
+        }
+
         public void UnlockSlotsForLevel(int level)
         {
             board.UnlockSlotsForLevel(level);
@@ -76,6 +86,11 @@ namespace Gameplay
         public void ShuffleBoard()
         {
             board.ShuffleBoard();
+        }
+
+        public void SetUsesEasyDeal(bool usesEasyDeal)
+        {
+            board.SetUsesEasyDeal(usesEasyDeal);
         }
 
         public void SetLevel(int level, float progress)
@@ -98,6 +113,16 @@ namespace Gameplay
         private void OnDealButtonClicked()
         {
             board.Deal();
+        }
+
+        private void OnDebugEasyDealButtonClicked()
+        {
+            board.DealEasy();
+        }
+
+        private void OnDebugBasicDealButtonClicked()
+        {
+            board.DealBasic();
         }
 
         private void OnAutoPlayButtonClicked()

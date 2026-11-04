@@ -10,11 +10,19 @@ namespace Gameplay
     {
         private const int MergeStackSize = 10;
 
+        private enum AutoPlayDealMode
+        {
+            Normal,
+            Easy,
+            Basic
+        }
+
         [SerializeField] private Slot[] slots;
         [SerializeField] private CoinBase coinPrefab;
         [SerializeField] private CoinSpriteConfig coinSpriteConfig;
         [SerializeField] private Transform selectedCoinParent;
         [SerializeField] private int slotCapacity = 10;
+        [SerializeField] private AutoPlayDealMode autoPlayDealMode;
         private float selectionLiftOffset = 10f;
         private float selectionAnimationDuration = 0.2f;
         private float transferAnimationDuration = 0.35f;
@@ -23,6 +31,7 @@ namespace Gameplay
         private BoardState _boardState;
         private Slot _selectedSlot;
         private bool _isAnimating;
+        private bool _usesEasyDeal;
         private Coroutine _autoPlayCoroutine;
         private int _currentMaxTier;
         private float _previousTimeScale;
@@ -137,7 +146,14 @@ namespace Gameplay
 
                 if (moves.Count == 0)
                 {
-                    Deal();
+                    DealForAutoPlay();
+
+                    if (!CanContinuePlaying())
+                    {
+                        StopAutoPlay();
+                        yield break;
+                    }
+
                     yield return new WaitForSecondsRealtime(0.1f);
                     continue;
                 }
@@ -159,6 +175,24 @@ namespace Gameplay
                 {
                     yield return null;
                 }
+            }
+        }
+
+        private void DealForAutoPlay()
+        {
+            switch (autoPlayDealMode)
+            {
+                case AutoPlayDealMode.Normal:
+                    Deal();
+                    break;
+                case AutoPlayDealMode.Easy:
+                    DealEasy();
+                    break;
+                case AutoPlayDealMode.Basic:
+                    DealBasic();
+                    break;
+                default:
+                    throw new System.ArgumentOutOfRangeException();
             }
         }
 
@@ -273,7 +307,21 @@ namespace Gameplay
                     .SetEase(Ease.OutSine));
             }
 
-            sequence.OnComplete(ClearSelection);
+            sequence.OnComplete(() =>
+            {
+                var targetSlot = _selectedSlot;
+                ClearSelection();
+                var upgradedTiers = TryMergeTargetStack(targetSlot);
+
+                if (upgradedTiers.Count == 0)
+                {
+                    return;
+                }
+
+                UpdateRetiredCoins();
+                BoardStateChanged?.Invoke(CreateBoardState());
+                CoinsCreated?.Invoke(upgradedTiers);
+            });
         }
 
         private void MoveSelectedCoinsToOverlay()
@@ -413,6 +461,21 @@ namespace Gameplay
 
         public void Deal()
         {
+            Deal(_usesEasyDeal);
+        }
+
+        public void DealEasy()
+        {
+            Deal(true);
+        }
+
+        public void DealBasic()
+        {
+            Deal(false);
+        }
+
+        private void Deal(bool usesEasyDeal)
+        {
             if (_isAnimating)
             {
                 return;
@@ -422,13 +485,18 @@ namespace Gameplay
             var minTier = GetMinTier(maxTier);
             var availableSlots = GetAvailableSlots();
 
-            if (maxTier <= minTier || availableSlots.Count <= 1)
+            if (!CanDeal(maxTier, availableSlots))
             {
                 return;
             }
 
-            Shuffle(availableSlots);
-            availableSlots.RemoveAt(Random.Range(0, availableSlots.Count));
+            OrderDealSlots(availableSlots, maxTier, usesEasyDeal);
+
+            if (availableSlots.Count > 1)
+            {
+                var skippedSlotIndex = usesEasyDeal ? 0 : Random.Range(0, availableSlots.Count);
+                availableSlots.RemoveAt(skippedSlotIndex);
+            }
 
             var highestDealableTier = maxTier == 4 ? maxTier : maxTier - 1;
             var dealableTierCount = highestDealableTier - minTier + 1;
@@ -458,6 +526,11 @@ namespace Gameplay
             UpdateRetiredCoins();
             BoardStateChanged?.Invoke(CreateBoardState());
             CoinsCreated?.Invoke(upgradedTiers);
+        }
+
+        public void SetUsesEasyDeal(bool usesEasyDeal)
+        {
+            _usesEasyDeal = usesEasyDeal;
         }
 
         public BoardState GetCurrentBoardState()
@@ -750,6 +823,11 @@ namespace Gameplay
             return false;
         }
 
+        public bool CanContinuePlaying()
+        {
+            return HasAvailableMoves() || CanDeal();
+        }
+
         public void UnlockSlotsForLevel(int level)
         {
             var hasUnlockedSlot = false;
@@ -934,6 +1012,45 @@ namespace Gameplay
             }
 
             return availableSlots;
+        }
+
+        private bool CanDeal()
+        {
+            var maxTier = GetHighestTier();
+            return CanDeal(maxTier, GetAvailableSlots());
+        }
+
+        private static bool CanDeal(int maxTier, List<Slot> availableSlots)
+        {
+            return maxTier > GetMinTier(maxTier) && availableSlots.Count > 0;
+        }
+
+        private void OrderDealSlots(List<Slot> availableSlots, int maxTier, bool usesEasyDeal)
+        {
+            if (!usesEasyDeal)
+            {
+                Shuffle(availableSlots);
+                return;
+            }
+
+            var highTierSlots = new List<Slot>();
+
+            for (var slotIndex = availableSlots.Count - 1; slotIndex >= 0; slotIndex--)
+            {
+                var slot = availableSlots[slotIndex];
+
+                if (slot.CoinCount == 0 || slot.GetCoin(slot.CoinCount - 1).Tier != maxTier)
+                {
+                    continue;
+                }
+
+                highTierSlots.Add(slot);
+                availableSlots.RemoveAt(slotIndex);
+            }
+
+            highTierSlots.Reverse();
+            Shuffle(availableSlots);
+            availableSlots.AddRange(highTierSlots);
         }
 
         private static int GetMinTier(int maxTier)

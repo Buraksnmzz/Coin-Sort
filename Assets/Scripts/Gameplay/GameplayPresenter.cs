@@ -12,6 +12,8 @@ namespace Gameplay
 {
     public class GameplayPresenter : BasePresenter<GameplayView>
     {
+        private const int EasyDealLastLevel = 21;
+
         private IBoardGenerationService _boardGenerationService;
         private ILevelProgressService _levelProgressService;
         private IEventDispatcherService _eventDispatcherService;
@@ -92,6 +94,7 @@ namespace Gameplay
                 _levelProgressService.SaveBoardState(View.GetCurrentBoardState());
             }
 
+            UpdateDealType();
             View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
         }
 
@@ -111,7 +114,7 @@ namespace Gameplay
 
             UpdateLevel(levelCompleted);
 
-            if (!View.HasAvailableMoves())
+            if (!View.CanContinuePlaying())
             {
                 ServiceLocator.GetService<IUIService>().ShowPopup<OutOfMovesPresenter>();
             }
@@ -144,6 +147,7 @@ namespace Gameplay
 
             if (levelCompleted)
             {
+                UpdateDealType();
                 View.UnlockSlotsForLevel(_levelProgressService.CurrentBoardLevel);
                 CaptureLevelStartSnapshot();
                 _levelProgressService.Flush();
@@ -182,6 +186,11 @@ namespace Gameplay
         private void CaptureLevelStartSnapshot()
         {
             _levelStartSnapshot = CloneBoardState(View.GetCurrentBoardState());
+        }
+
+        private void UpdateDealType()
+        {
+            View.SetUsesEasyDeal(_levelProgressService.CurrentLevel <= EasyDealLastLevel);
         }
 
         private static BoardState CloneBoardState(BoardState boardState)
