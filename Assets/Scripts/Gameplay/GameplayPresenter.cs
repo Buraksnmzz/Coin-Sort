@@ -122,10 +122,10 @@ namespace Gameplay
 
         private void UpdateLevel(bool levelCompleted)
         {
-            if (levelCompleted)
-            {
-                View.StopAutoPlay();
-            }
+            // if (levelCompleted)
+            // {
+            //     View.StopAutoPlay();
+            // }
 
             var nextBoardIndex = _levelProgressService.GetBoardIndex();
 
@@ -166,7 +166,7 @@ namespace Gameplay
         private void OnShuffleBoard(ShuffleBoardSignal signal)
         {
             var collectibleModel = _savedDataService.GetModel<CollectibleModel>();
-            var shuffleCost = _savedDataService.GetModel<RemoteConfigModel>().ShuffleCost;
+            var shuffleCost = _savedDataService.GetModel<RemoteConfigModel>().shuffleCost;
 
             if (collectibleModel.TotalCoins <= shuffleCost)
             {
@@ -203,7 +203,7 @@ namespace Gameplay
 
                 foreach (var coinState in slotState.Coins)
                 {
-                    coins.Add(new CoinState(coinState.Tier, coinState.Type));
+                    coins.Add(new CoinState(coinState.Tier, coinState.Type, coinState.IsHiddenGroupCenter));
                 }
 
                 slots.Add(new SlotState(

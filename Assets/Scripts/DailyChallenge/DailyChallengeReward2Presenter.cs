@@ -33,7 +33,7 @@ namespace DailyChallenge
             _eventDispatcherService.AddListener<CoinChangedSignal>(OnCoinChanged);
             var remoteConfigModel = _savedDataService.GetModel<RemoteConfigModel>();
             var collectibleModel = _savedDataService.GetModel<CollectibleModel>();
-            _rewardCoins = remoteConfigModel.CompleteMonthCoinReward;
+            _rewardCoins = remoteConfigModel.completeMonthCoinReward;
             View.SetCoinWonAmount(_rewardCoins);
             View.SetCoinCount(collectibleModel.TotalCoins);
             View.SetButtonsInteractable(true);

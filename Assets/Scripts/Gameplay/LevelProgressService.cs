@@ -72,7 +72,7 @@ namespace Gameplay
 
                 foreach (var savedCoin in savedSlot.Coins)
                 {
-                    coins.Add(new CoinState(savedCoin.Tier, savedCoin.Type));
+                    coins.Add(new CoinState(savedCoin.Tier, savedCoin.Type, savedCoin.IsHiddenGroupCenter, savedCoin.ObstacleGroupId, savedCoin.IcedCountdown));
                 }
 
                 slots.Add(new SlotState(
@@ -101,7 +101,10 @@ namespace Gameplay
                     slotSnapshot.Coins.Add(new CoinSnapshot
                     {
                         Tier = coinState.Tier,
-                        Type = coinState.Type
+                        Type = coinState.Type,
+                        IsHiddenGroupCenter = coinState.IsHiddenGroupCenter,
+                        ObstacleGroupId = coinState.ObstacleGroupId,
+                        IcedCountdown = coinState.IcedCountdown
                     });
                 }
 

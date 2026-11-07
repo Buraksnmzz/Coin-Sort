@@ -57,7 +57,7 @@ namespace Gameplay
             {
                 var automaticUnlockLevel = GetAutomaticUnlockLevel(slotIndex, initialUnlockedSlotCount, slotUnlockLevels);
                 var slotType = GetSlotType(slotIndex, unlockedSlotCount);
-                var unlockCoinCost = slotType == SlotType.Unlockable ? _remoteConfigModel.UnlockableSlotCoinCost : 0;
+                var unlockCoinCost = slotType == SlotType.Unlockable ? _remoteConfigModel.unlockableSlotCoinCost : 0;
 
                 slots[slotIndex] = new SlotState(
                     unlockCoinCost,

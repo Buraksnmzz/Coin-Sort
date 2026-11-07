@@ -27,11 +27,17 @@ namespace RemoteConfig
             try
             {
                 var root = JObject.Parse(rawJson);
-                ApplyString(root, "rate_trigger_levels", v => _remoteConfigModel.RateTriggerLevels = v);
+                ApplyString(root, "rate_trigger_levels", v => _remoteConfigModel.rateTriggerLevels = v);
                 ApplyInt(root, "starting_coins", v => _remoteConfigModel.StartingCoins = v);
-                ApplyInt(root, "win_reward_coins", v => _remoteConfigModel.WinRewardCoins = v);
-                ApplyInt(root, "unlockable_slot_coin_cost", v => _remoteConfigModel.UnlockableSlotCoinCost = v);
-                ApplyInt(root, "shuffle_cost", v => _remoteConfigModel.ShuffleCost = v);
+                ApplyInt(root, "win_reward_coins", v => _remoteConfigModel.winRewardCoins = v);
+                ApplyInt(root, "unlockable_slot_coin_cost", v => _remoteConfigModel.unlockableSlotCoinCost = v);
+                ApplyInt(root, "shuffle_cost", v => _remoteConfigModel.shuffleCost = v);
+                ApplyBool(root, "is_hardness_config_active", v => _remoteConfigModel.isHardnessConfigActive = v);
+                ApplyJson(root, "hardness_config", v => _remoteConfigModel.hardnessConfig = v);
+                ApplyInt(root, "rainbow_unlock_level", v => _remoteConfigModel.rainbowUnlockLevel = v);
+                ApplyInt(root, "hidden_unlock_level", v => _remoteConfigModel.hiddenUnlockLevel = v);
+                ApplyInt(root, "sticky_unlock_level", v => _remoteConfigModel.stickyUnlockLevel = v);
+                ApplyInt(root, "iced_unlock_level", v => _remoteConfigModel.icedUnlockLevel = v);
                 _savedDataService.SaveData(_remoteConfigModel);
                 return true;
             }
@@ -66,16 +72,31 @@ namespace RemoteConfig
             setter(value);
         }
 
-        private void ApplyIntArray(JObject root, string key, Action<int[]> setter)
+        private void ApplyBool(JObject root, string key, Action<bool> setter)
         {
             if (!root.TryGetValue(key, out var token))
                 return;
 
-            var value = ReadIntArray(token);
-            if (value.Length == 0)
+            if (token.Type == JTokenType.Boolean)
+            {
+                setter(token.Value<bool>());
+                return;
+            }
+
+            if (token.Type == JTokenType.String && bool.TryParse(token.Value<string>(), out var value))
+            {
+                setter(value);
+            }
+        }
+
+        private void ApplyJson(JObject root, string key, Action<string> setter)
+        {
+            if (!root.TryGetValue(key, out var token))
                 return;
 
-            setter(value);
+            var rawJson = token.Type == JTokenType.String ? token.Value<string>() : token.ToString();
+            JObject.Parse(rawJson);
+            setter(rawJson);
         }
 
         private bool TryReadInt(JToken token, out int value)
@@ -100,43 +121,6 @@ namespace RemoteConfig
 
             value = 0;
             return false;
-        }
-
-        private int[] ReadIntArray(JToken token)
-        {
-            if (token.Type == JTokenType.Array)
-            {
-                var values = new List<int>();
-                foreach (var item in token)
-                {
-                    if (TryReadInt(item, out var v))
-                        values.Add(v);
-                }
-
-                return values.ToArray();
-            }
-
-            if (token.Type == JTokenType.String)
-            {
-                var s = token.Value<string>();
-                if (string.IsNullOrWhiteSpace(s))
-                    return Array.Empty<int>();
-
-                var parts = s.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                var values = new List<int>(parts.Length);
-                for (var i = 0; i < parts.Length; i++)
-                {
-                    if (int.TryParse(parts[i].Trim(), out var parsed))
-                        values.Add(parsed);
-                }
-
-                return values.ToArray();
-            }
-
-            if (TryReadInt(token, out var single))
-                return new[] { single };
-
-            return Array.Empty<int>();
         }
     }
 }

@@ -12,6 +12,7 @@ namespace Gameplay
         public int CurrentBoardIndex;
         public int PhaseIndex;
         public BoardSnapshot BoardSnapshot;
+        public List<ObstacleScheduleSnapshot> ObstacleSchedules = new List<ObstacleScheduleSnapshot>();
     }
 
     [Serializable]
@@ -32,5 +33,18 @@ namespace Gameplay
     {
         public int Tier;
         public CoinType Type;
+        public bool IsHiddenGroupCenter;
+        public int ObstacleGroupId;
+        public int IcedCountdown;
+    }
+
+    [Serializable]
+    public class ObstacleScheduleSnapshot
+    {
+        public int Level;
+        public int Probability;
+        public int HiddenWeight;
+        public int StickyWeight;
+        public int IcedWeight;
     }
 }

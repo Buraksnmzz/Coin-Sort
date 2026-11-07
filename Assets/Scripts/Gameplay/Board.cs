@@ -1,6 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
+using GameConfig;
+using General;
+using SavedData;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,12 +12,17 @@ namespace Gameplay
     public class Board : MonoBehaviour
     {
         private const int MergeStackSize = 10;
+        private const float HardDealHardness = 1f;
+        private const float AutoMergeDealValue = 0.5f;
+        private const int MaximumAutoMergeCandidates = 4;
 
         private enum AutoPlayDealMode
         {
             Normal,
             Easy,
-            Basic
+            Basic,
+            Hard,
+            AutoMerge
         }
 
         [SerializeField] private Slot[] slots;
@@ -28,6 +36,8 @@ namespace Gameplay
         private float transferAnimationDuration = 0.35f;
 
         private readonly List<CoinBase> _selectedCoins = new List<CoinBase>();
+        private readonly HashSet<int> _completedObstacleUnlockLevels = new HashSet<int>();
+        private readonly ObstacleDealPlanner _obstacleDealPlanner = new ObstacleDealPlanner();
         private BoardState _boardState;
         private Slot _selectedSlot;
         private bool _isAnimating;
@@ -38,6 +48,7 @@ namespace Gameplay
 
         public event System.Action<IReadOnlyList<int>> CoinsCreated;
         public event System.Action<BoardState> BoardStateChanged;
+        public event System.Action<DealStrategyType> DealExecuted;
 
         public int HighestTier => GetHighestTier();
 
@@ -54,7 +65,7 @@ namespace Gameplay
             }
 
             _previousTimeScale = Time.timeScale;
-            Time.timeScale = 10f;
+            Time.timeScale = 20f;
             _autoPlayCoroutine = StartCoroutine(AutoPlay());
         }
 
@@ -191,6 +202,12 @@ namespace Gameplay
                 case AutoPlayDealMode.Basic:
                     DealBasic();
                     break;
+                case AutoPlayDealMode.Hard:
+                    DealHard();
+                    break;
+                case AutoPlayDealMode.AutoMerge:
+                    DealAutoMerge();
+                    break;
                 default:
                     throw new System.ArgumentOutOfRangeException();
             }
@@ -204,13 +221,34 @@ namespace Gameplay
             }
 
             var topCoin = slot.GetCoin(slot.CoinCount - 1);
+            if (topCoin.Type == CoinType.Iced)
+            {
+                return;
+            }
+
             _selectedSlot = slot;
+
+            if (topCoin.Type == CoinType.Sticky)
+            {
+                AddStickyGroup(slot, topCoin);
+                MoveSelectedCoinsToOverlay();
+                AnimateSelectedCoins(Vector3.up * selectionLiftOffset, selectionAnimationDuration);
+                return;
+            }
+
+            if (topCoin.Type == CoinType.Rainbow)
+            {
+                _selectedCoins.Add(topCoin);
+                MoveSelectedCoinsToOverlay();
+                AnimateSelectedCoins(Vector3.up * selectionLiftOffset, selectionAnimationDuration);
+                return;
+            }
 
             for (var coinIndex = slot.CoinCount - 1; coinIndex >= 0; coinIndex--)
             {
                 var coin = slot.GetCoin(coinIndex);
 
-                if (coin.Tier != topCoin.Tier)
+                if (coin.Type != CoinType.Standard || coin.Tier != topCoin.Tier)
                 {
                     break;
                 }
@@ -225,13 +263,17 @@ namespace Gameplay
 
         private bool CanTransferTo(Slot targetSlot)
         {
-            if (targetSlot.CoinCount >= slotCapacity)
+            if (_selectedCoins[0].Type == CoinType.Sticky)
             {
-                return false;
+                return targetSlot.CoinCount + _selectedCoins.Count <= slotCapacity &&
+                       (targetSlot.CoinCount == 0 ||
+                        targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == _selectedCoins[0].Tier);
             }
 
-            return targetSlot.CoinCount == 0 ||
-                   targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == _selectedCoins[0].Tier;
+            return targetSlot.CoinCount < slotCapacity &&
+                   (_selectedCoins[0].Type == CoinType.Rainbow ||
+                   targetSlot.CoinCount == 0 ||
+                   targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == _selectedCoins[0].Tier);
         }
 
         private List<AutoPlayMove> GetAvailableAutoPlayMoves()
@@ -246,6 +288,10 @@ namespace Gameplay
                 }
 
                 var sourceTopTier = sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Tier;
+                if (sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Type == CoinType.Iced)
+                {
+                    continue;
+                }
                 var movesEntireStack = GetTopStackCount(sourceSlot) == sourceSlot.CoinCount;
 
                 foreach (var targetSlot in slots)
@@ -260,7 +306,13 @@ namespace Gameplay
                         continue;
                     }
 
-                    if (targetSlot.CoinCount == 0 ||
+                    if (sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Type == CoinType.Sticky && targetSlot.CoinCount == 0)
+                    {
+                        continue;
+                    }
+
+                    if (sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Type == CoinType.Rainbow ||
+                        targetSlot.CoinCount == 0 ||
                         targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == sourceTopTier)
                     {
                         moves.Add(new AutoPlayMove(sourceSlot, targetSlot));
@@ -339,6 +391,7 @@ namespace Gameplay
             var transferStartIndex = _selectedCoins.Count - transferCount;
             var transferredCoins = _selectedCoins.GetRange(transferStartIndex, transferCount);
             var remainingCoins = _selectedCoins.GetRange(0, transferStartIndex);
+            var targetTopTier = targetSlot.CoinCount > 0 ? targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier : 0;
             var sourcePositions = new List<Vector3>(transferredCoins.Count);
 
             foreach (var coin in transferredCoins)
@@ -413,6 +466,21 @@ namespace Gameplay
 
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)targetSlot.GetNextCoinParent());
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)_selectedSlot.GetNextCoinParent());
+
+                if (targetTopTier > 0)
+                {
+                    foreach (var coin in transferredCoins)
+                    {
+                        if (coin.Type == CoinType.Rainbow)
+                        {
+                            coin.TransformRainbow(targetTopTier, coinSpriteConfig);
+                        }
+                    }
+                }
+
+                ConvertStickyGroupWhenMergeReady(targetSlot, transferredCoins);
+                RevealTopHiddenCoins(targetSlot);
+                RevealTopHiddenCoins(_selectedSlot);
                 var upgradedTiers = TryMergeTargetStack(targetSlot);
                 UpdateRetiredCoins();
                 _selectedCoins.Clear();
@@ -426,7 +494,7 @@ namespace Gameplay
 
         private List<int> TryMergeTargetStack(Slot targetSlot)
         {
-            if (GetTopStackCount(targetSlot) != MergeStackSize)
+            if (GetMergeableTopCount(targetSlot) != MergeStackSize)
             {
                 return new List<int>();
             }
@@ -449,6 +517,7 @@ namespace Gameplay
             }
 
             LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)targetSlot.GetNextCoinParent());
+            ReduceIcedCountdowns();
             var upgradedTiers = new List<int>(upgradedCoinCount);
 
             for (var coinIndex = 0; coinIndex < upgradedCoinCount; coinIndex++)
@@ -461,17 +530,100 @@ namespace Gameplay
 
         public void Deal()
         {
-            Deal(_usesEasyDeal);
+            ExecuteDealStrategy(GetDealStrategy());
         }
 
         public void DealEasy()
         {
-            Deal(true);
+            ExecuteDealStrategy(new EasyDealStrategy());
         }
 
         public void DealBasic()
         {
-            Deal(false);
+            ExecuteDealStrategy(new BasicDealStrategy());
+        }
+
+        public void DealHard()
+        {
+            ExecuteDealStrategy(new HardDealStrategy());
+        }
+
+        public void DealAutoMerge()
+        {
+            ExecuteDealStrategy(new AutoMergeDealStrategy());
+        }
+
+        public void DealSmart()
+        {
+            ExecuteDealStrategy(CreateSmartDealStrategy(.9f));
+        }
+
+        private void ExecuteDealStrategy(IDealStrategy strategy)
+        {
+            if (_isAnimating)
+            {
+                return;
+            }
+
+            var deal = strategy.CreatePlan(new DealContext(slots, slotCapacity, GetHighestTier()));
+
+            if (deal == null)
+            {
+                return;
+            }
+
+            if (!strategy.IncludesObstaclePlan)
+            {
+                ApplyObstacleDeals(deal, strategy.Type == DealStrategyType.Easy);
+            }
+
+            DealExecuted?.Invoke(strategy.Type);
+            ExecuteDeal(deal.Stacks);
+        }
+
+        private void ApplyObstacleDeals(DealPlan deal, bool isEasyDeal)
+        {
+            var remoteConfigModel = ServiceLocator.GetService<ISavedDataService>().GetModel<RemoteConfigModel>();
+            var levelProgressService = ServiceLocator.GetService<ILevelProgressService>();
+            var currentLevel = levelProgressService.CurrentLevel;
+            var result = _obstacleDealPlanner.Apply(
+                deal,
+                new DealContext(slots, slotCapacity, deal.MaxTier),
+                currentLevel,
+                remoteConfigModel,
+                ServiceLocator.GetService<ISavedDataService>().GetModel<LevelProgressModel>());
+        }
+
+        private IDealStrategy GetDealStrategy()
+        {
+            var remoteConfigModel = ServiceLocator.GetService<ISavedDataService>().GetModel<RemoteConfigModel>();
+
+            if (!remoteConfigModel.isHardnessConfigActive)
+            {
+                return _usesEasyDeal ? new EasyDealStrategy() : new BasicDealStrategy();
+            }
+
+            var level = ServiceLocator.GetService<ILevelProgressService>().CurrentLevel;
+            var config = HardnessDealConfigResolver.Resolve(remoteConfigModel.hardnessConfig, level);
+
+            switch (config.DealType)
+            {
+                case HardnessDealType.Hard:
+                    return new HardDealStrategy(config.Value);
+                case HardnessDealType.AutoMerge:
+                    return new AutoMergeDealStrategy(config.Value);
+                case HardnessDealType.Magic:
+                    return new BasicDealStrategy();
+                case HardnessDealType.Smart:
+                    return CreateSmartDealStrategy(config.Value);
+                default:
+                    return _usesEasyDeal ? new EasyDealStrategy() : new BasicDealStrategy();
+            }
+        }
+
+        private IDealStrategy CreateSmartDealStrategy(float selectionValue)
+        {
+            return new SmartDealStrategy(selectionValue, deal => ApplyObstacleDeals(deal, false));
         }
 
         private void Deal(bool usesEasyDeal)
@@ -501,31 +653,553 @@ namespace Gameplay
             var highestDealableTier = maxTier == 4 ? maxTier : maxTier - 1;
             var dealableTierCount = highestDealableTier - minTier + 1;
             var distributionCount = Mathf.Max(dealableTierCount, availableSlots.Count);
+            var stacks = CreateDealStacks(
+                availableSlots,
+                minTier,
+                maxTier,
+                dealableTierCount,
+                distributionCount);
+
+            ExecuteDeal(stacks);
+        }
+
+        private DealPlan CreateBasicDeal()
+        {
+            var maxTier = GetHighestTier();
+            var minTier = GetMinTier(maxTier);
+            var availableSlots = GetAvailableSlots();
+
+            if (!CanDeal(maxTier, availableSlots))
+            {
+                return null;
+            }
+
+            OrderDealSlots(availableSlots, maxTier, false);
+            Slot skippedSlot = null;
+
+            if (availableSlots.Count > 1)
+            {
+                var skippedSlotIndex = Random.Range(0, availableSlots.Count);
+                skippedSlot = availableSlots[skippedSlotIndex];
+                availableSlots.RemoveAt(skippedSlotIndex);
+            }
+
+            var highestDealableTier = maxTier == 4 ? maxTier : maxTier - 1;
+            var dealableTierCount = highestDealableTier - minTier + 1;
+            var distributionCount = Mathf.Max(dealableTierCount, availableSlots.Count);
+            var stacks = CreateDealStacks(
+                availableSlots,
+                minTier,
+                maxTier,
+                dealableTierCount,
+                distributionCount);
+
+            return new DealPlan(maxTier, skippedSlot, stacks);
+        }
+
+        private List<DealStack> CreateDealStacks(
+            List<Slot> availableSlots,
+            int minTier,
+            int maxTier,
+            int dealableTierCount,
+            int distributionCount)
+        {
+            var stacks = new List<DealStack>(distributionCount);
 
             for (var distributionIndex = 0; distributionIndex < distributionCount; distributionIndex++)
             {
                 var tier = minTier + distributionIndex % dealableTierCount;
                 var slot = availableSlots[distributionIndex % availableSlots.Count];
-                var coinCount = Mathf.Min(GetDealCount(tier, maxTier), slot.AvailableCoinCapacity(slotCapacity));
+                var plannedCoinCount = GetPlannedCoinCount(stacks, slot);
+                var availableCoinCapacity = slot.AvailableCoinCapacity(slotCapacity) - plannedCoinCount;
+                var coinCount = Mathf.Min(GetDealCount(tier, maxTier), availableCoinCapacity);
 
-                for (var coinIndex = 0; coinIndex < coinCount; coinIndex++)
+                if (coinCount > 0)
                 {
-                    var coin = Instantiate(coinPrefab, slot.GetNextCoinParent());
-                    coin.Initialize(new CoinState(tier, CoinType.Standard), coinSpriteConfig);
+                    stacks.Add(new DealStack(tier, coinCount, slot));
+                }
+            }
+
+            return stacks;
+        }
+
+        private void ExecuteDeal(List<DealStack> stacks)
+        {
+            var initialCoinCounts = new Dictionary<Slot, int>();
+
+            foreach (var slot in slots)
+            {
+                initialCoinCounts.Add(slot, slot.CoinCount);
+            }
+
+            foreach (var stack in stacks)
+            {
+                for (var coinIndex = 0; coinIndex < stack.CoinCount; coinIndex++)
+                {
+                    var coin = Instantiate(coinPrefab, stack.TargetSlot.GetNextCoinParent());
+                    coin.Initialize(
+                        new CoinState(stack.Tier, stack.Type, stack.IsHiddenGroup && coinIndex == 1, stack.ObstacleGroupId, stack.IcedCountdown),
+                        coinSpriteConfig);
+
+                    if (stack.Type == CoinType.Hidden)
+                    {
+                        coin.transform.SetSiblingIndex(initialCoinCounts[stack.TargetSlot] + coinIndex);
+                    }
                 }
             }
 
             var upgradedTiers = new List<int>();
 
-            foreach (var slot in availableSlots)
+            foreach (var slot in GetDealTargetSlots(stacks))
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)slot.GetNextCoinParent());
+                RevealTopHiddenCoins(slot);
                 upgradedTiers.AddRange(TryMergeTargetStack(slot));
             }
 
             UpdateRetiredCoins();
             BoardStateChanged?.Invoke(CreateBoardState());
             CoinsCreated?.Invoke(upgradedTiers);
+        }
+
+        private void RevealTopHiddenCoins(Slot slot)
+        {
+            while (slot.CoinCount > 0)
+            {
+                var topCoin = slot.GetCoin(slot.CoinCount - 1);
+
+                if (topCoin.Type != CoinType.Hidden)
+                {
+                    return;
+                }
+
+                var groupId = topCoin.ObstacleGroupId;
+                for (var coinIndex = 0; coinIndex < slot.CoinCount; coinIndex++)
+                {
+                    var coin = slot.GetCoin(coinIndex);
+                    if (coin.Type == CoinType.Hidden && coin.ObstacleGroupId == groupId)
+                    {
+                        coin.RevealHidden();
+                    }
+                }
+            }
+        }
+
+        private void AddStickyGroup(Slot slot, CoinBase topCoin)
+        {
+            for (var coinIndex = slot.CoinCount - 1; coinIndex >= 0; coinIndex--)
+            {
+                var coin = slot.GetCoin(coinIndex);
+                if (coin.Type != CoinType.Sticky || coin.ObstacleGroupId != topCoin.ObstacleGroupId)
+                {
+                    break;
+                }
+
+                _selectedCoins.Add(coin);
+            }
+
+            _selectedCoins.Reverse();
+        }
+
+        private void ConvertStickyGroupWhenMergeReady(Slot targetSlot, List<CoinBase> transferredCoins)
+        {
+            if (transferredCoins.Count == 0 || transferredCoins[0].Type != CoinType.Sticky || GetSameTierTopCount(targetSlot) != MergeStackSize)
+            {
+                return;
+            }
+
+            foreach (var coin in transferredCoins)
+            {
+                coin.ConvertStickyToStandard();
+            }
+        }
+
+        private static int GetSameTierTopCount(Slot slot)
+        {
+            if (slot.CoinCount == 0) return 0;
+            var tier = slot.GetCoin(slot.CoinCount - 1).Tier;
+            var count = 0;
+            for (var index = slot.CoinCount - 1; index >= 0 && slot.GetCoin(index).Tier == tier; index--)
+            {
+                count++;
+            }
+            return count;
+        }
+
+        private void ReduceIcedCountdowns()
+        {
+            var groups = new Dictionary<int, List<CoinBase>>();
+            foreach (var slot in slots)
+            {
+                for (var coinIndex = 0; coinIndex < slot.CoinCount; coinIndex++)
+                {
+                    var coin = slot.GetCoin(coinIndex);
+                    if (coin.Type != CoinType.Iced)
+                    {
+                        continue;
+                    }
+
+                    if (!groups.TryGetValue(coin.ObstacleGroupId, out var group))
+                    {
+                        group = new List<CoinBase>();
+                        groups.Add(coin.ObstacleGroupId, group);
+                    }
+
+                    group.Add(coin);
+                }
+            }
+
+            foreach (var group in groups.Values)
+            {
+                var countdown = group[0].IcedCountdown - 1;
+                foreach (var coin in group)
+                {
+                    if (countdown == 0) coin.BreakIce();
+                    else coin.SetIcedCountdown(countdown);
+                }
+            }
+        }
+
+        private void TryApplyHardDeal(DealPlan deal)
+        {
+            var highTierSlot = GetEligibleHighTierSlot(deal.MaxTier);
+
+            if (highTierSlot == null)
+            {
+                return;
+            }
+
+            var highTierStackIndex = GetStackIndexTargetingSlot(deal.Stacks, highTierSlot);
+
+            if (highTierStackIndex < 0)
+            {
+                return;
+            }
+
+            var swappableStackIndices = new List<int>();
+
+            for (var stackIndex = 0; stackIndex < deal.Stacks.Count; stackIndex++)
+            {
+                if (stackIndex != highTierStackIndex)
+                {
+                    swappableStackIndices.Add(stackIndex);
+                }
+            }
+
+            if (swappableStackIndices.Count == 0)
+            {
+                return;
+            }
+
+            var selectedStackIndex = swappableStackIndices[Random.Range(0, swappableStackIndices.Count)];
+            var highTierStack = deal.Stacks[highTierStackIndex];
+            var selectedStack = deal.Stacks[selectedStackIndex];
+
+            if (!CanSwapDealStacks(deal.Stacks, highTierStack, selectedStack))
+            {
+                return;
+            }
+
+            highTierStack.TargetSlot = selectedStack.TargetSlot;
+            selectedStack.TargetSlot = highTierSlot;
+        }
+
+        private void TryApplyAutoMergeDeal(DealPlan deal)
+        {
+            var targetAutoMergeCount = GetTargetAutoMergeCount();
+            var autoMergeSlots = GetExistingAutoMergeSlots(deal);
+
+            if (autoMergeSlots.Count >= targetAutoMergeCount)
+            {
+                return;
+            }
+
+            var attemptedCandidateCount = 0;
+
+            for (var slotIndex = slots.Length - 1;
+                 slotIndex >= 0 && attemptedCandidateCount < MaximumAutoMergeCandidates;
+                 slotIndex--)
+            {
+                var candidateSlot = slots[slotIndex];
+
+                if (!IsAutoMergeCandidate(candidateSlot, deal.MaxTier) || autoMergeSlots.Contains(candidateSlot))
+                {
+                    continue;
+                }
+
+                attemptedCandidateCount++;
+
+                if (!TryCreateAutoMerge(deal, candidateSlot, autoMergeSlots))
+                {
+                    continue;
+                }
+
+                autoMergeSlots.Add(candidateSlot);
+
+                if (autoMergeSlots.Count >= targetAutoMergeCount)
+                {
+                    return;
+                }
+            }
+        }
+
+        private static int GetTargetAutoMergeCount()
+        {
+            var guaranteedAutoMergeCount = Mathf.FloorToInt(AutoMergeDealValue);
+            var fractionalAutoMergeChance = AutoMergeDealValue - guaranteedAutoMergeCount;
+            return guaranteedAutoMergeCount + (Random.value <= fractionalAutoMergeChance ? 1 : 0);
+        }
+
+        private List<Slot> GetExistingAutoMergeSlots(DealPlan deal)
+        {
+            var autoMergeSlots = new List<Slot>();
+
+            foreach (var slot in slots)
+            {
+                if (!IsAutoMergeCandidate(slot, deal.MaxTier))
+                {
+                    continue;
+                }
+
+                var requiredCoinCount = MergeStackSize - slot.CoinCount;
+                var plannedCoinCount = GetPlannedCoinCount(deal.Stacks, slot);
+
+                if (plannedCoinCount != requiredCoinCount ||
+                    !AreAllPlannedCoinsOfTier(deal.Stacks, slot, GetSlotCoinTier(slot)))
+                {
+                    continue;
+                }
+
+                autoMergeSlots.Add(slot);
+            }
+
+            return autoMergeSlots;
+        }
+
+        private bool TryCreateAutoMerge(DealPlan deal, Slot candidateSlot, List<Slot> autoMergeSlots)
+        {
+            var requiredCoinCount = MergeStackSize - candidateSlot.CoinCount;
+            var candidateTier = GetSlotCoinTier(candidateSlot);
+
+            foreach (var stack in deal.Stacks)
+            {
+                if (stack.TargetSlot == candidateSlot ||
+                    autoMergeSlots.Contains(stack.TargetSlot) ||
+                    stack.Tier != candidateTier ||
+                    stack.CoinCount < requiredCoinCount)
+                {
+                    continue;
+                }
+
+                var incomingCandidateCoinCount = GetPlannedCoinCount(deal.Stacks, candidateSlot);
+                var sourcePlannedCoinCount = GetPlannedCoinCount(deal.Stacks, stack.TargetSlot);
+                var sourceCapacity = stack.TargetSlot.AvailableCoinCapacity(slotCapacity);
+
+                if (sourcePlannedCoinCount - requiredCoinCount + incomingCandidateCoinCount > sourceCapacity)
+                {
+                    continue;
+                }
+
+                MoveCandidateStacksToSource(deal.Stacks, candidateSlot, stack.TargetSlot);
+                stack.CoinCount -= requiredCoinCount;
+                deal.Stacks.Add(new DealStack(candidateTier, requiredCoinCount, candidateSlot));
+                RemoveEmptyDealStacks(deal.Stacks);
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void MoveCandidateStacksToSource(List<DealStack> stacks, Slot candidateSlot, Slot sourceSlot)
+        {
+            foreach (var stack in stacks)
+            {
+                if (stack.TargetSlot == candidateSlot)
+                {
+                    stack.TargetSlot = sourceSlot;
+                }
+            }
+        }
+
+        private static void RemoveEmptyDealStacks(List<DealStack> stacks)
+        {
+            for (var stackIndex = stacks.Count - 1; stackIndex >= 0; stackIndex--)
+            {
+                if (stacks[stackIndex].CoinCount == 0)
+                {
+                    stacks.RemoveAt(stackIndex);
+                }
+            }
+        }
+
+        private bool IsAutoMergeCandidate(Slot slot, int maxTier)
+        {
+            if (!slot.IsUnlocked || slot.CoinCount < 5 || slot.CoinCount >= MergeStackSize)
+            {
+                return false;
+            }
+
+            var tier = GetSlotCoinTier(slot);
+
+            if (tier >= maxTier - 2)
+            {
+                return false;
+            }
+
+            for (var coinIndex = 0; coinIndex < slot.CoinCount; coinIndex++)
+            {
+                var coin = slot.GetCoin(coinIndex);
+
+                if (coin.Type != CoinType.Standard || coin.Tier != tier)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool AreAllPlannedCoinsOfTier(List<DealStack> stacks, Slot slot, int tier)
+        {
+            foreach (var stack in stacks)
+            {
+                if (stack.TargetSlot == slot && stack.Tier != tier)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static int GetSlotCoinTier(Slot slot)
+        {
+            return slot.GetCoin(0).Tier;
+        }
+
+        private void TryApplyEasyDeal(DealPlan deal)
+        {
+            if (deal.SkippedSlot == null)
+            {
+                return;
+            }
+
+            var highTierSlot = GetEligibleHighTierSlot(deal.MaxTier);
+
+            if (highTierSlot == null)
+            {
+                return;
+            }
+
+            var highTierStackIndex = GetStackIndexTargetingSlot(deal.Stacks, highTierSlot);
+
+            if (highTierStackIndex < 0)
+            {
+                return;
+            }
+
+            var highTierStack = deal.Stacks[highTierStackIndex];
+
+            if (highTierStack.CoinCount > deal.SkippedSlot.AvailableCoinCapacity(slotCapacity))
+            {
+                return;
+            }
+
+            highTierStack.TargetSlot = deal.SkippedSlot;
+        }
+
+        private Slot GetEligibleHighTierSlot(int maxTier)
+        {
+            foreach (var slot in slots)
+            {
+                for (var coinIndex = slot.CoinCount - 1; coinIndex >= 0; coinIndex--)
+                {
+                    var coin = slot.GetCoin(coinIndex);
+
+                    if (coin.Tier != maxTier)
+                    {
+                        continue;
+                    }
+
+                    if (HasBlockingCoinAbove(slot, coinIndex, maxTier))
+                    {
+                        break;
+                    }
+
+                    return slot;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool HasBlockingCoinAbove(Slot slot, int highTierCoinIndex, int maxTier)
+        {
+            for (var coinIndex = highTierCoinIndex + 1; coinIndex < slot.CoinCount; coinIndex++)
+            {
+                var coin = slot.GetCoin(coinIndex);
+
+                if (coin.Type == CoinType.Hidden || coin.Tier != maxTier)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool CanSwapDealStacks(List<DealStack> stacks, DealStack firstStack, DealStack secondStack)
+        {
+            var firstTargetCoinCount = GetPlannedCoinCount(stacks, firstStack.TargetSlot);
+            var secondTargetCoinCount = GetPlannedCoinCount(stacks, secondStack.TargetSlot);
+            var firstTargetCapacity = firstStack.TargetSlot.AvailableCoinCapacity(slotCapacity);
+            var secondTargetCapacity = secondStack.TargetSlot.AvailableCoinCapacity(slotCapacity);
+
+            return firstTargetCoinCount - firstStack.CoinCount + secondStack.CoinCount <= firstTargetCapacity &&
+                   secondTargetCoinCount - secondStack.CoinCount + firstStack.CoinCount <= secondTargetCapacity;
+        }
+
+        private static int GetStackIndexTargetingSlot(List<DealStack> stacks, Slot slot)
+        {
+            for (var stackIndex = 0; stackIndex < stacks.Count; stackIndex++)
+            {
+                if (stacks[stackIndex].TargetSlot == slot)
+                {
+                    return stackIndex;
+                }
+            }
+
+            return -1;
+        }
+
+        private static int GetPlannedCoinCount(List<DealStack> stacks, Slot slot)
+        {
+            var coinCount = 0;
+
+            foreach (var stack in stacks)
+            {
+                if (stack.TargetSlot == slot)
+                {
+                    coinCount += stack.CoinCount;
+                }
+            }
+
+            return coinCount;
+        }
+
+        private static List<Slot> GetDealTargetSlots(List<DealStack> stacks)
+        {
+            var targetSlots = new List<Slot>();
+
+            foreach (var stack in stacks)
+            {
+                if (!targetSlots.Contains(stack.TargetSlot))
+                {
+                    targetSlots.Add(stack.TargetSlot);
+                }
+            }
+
+            return targetSlots;
         }
 
         public void SetUsesEasyDeal(bool usesEasyDeal)
@@ -556,18 +1230,20 @@ namespace Gameplay
             {
                 shuffledSlots.Add(new List<CoinState>());
                 List<CoinState> obstacleGroup = null;
+                var obstacleGroupId = -1;
 
                 for (var coinIndex = 0; coinIndex < slots[slotIndex].CoinCount; coinIndex++)
                 {
                     var coin = slots[slotIndex].GetCoin(coinIndex);
-                    var coinState = new CoinState(coin.Tier, coin.Type);
+                    var coinState = new CoinState(coin.Tier, coin.Type, coin.IsHiddenGroupCenter, coin.ObstacleGroupId, coin.IcedCountdown);
 
                     if (coin.Type != CoinType.Standard)
                     {
-                        if (obstacleGroup == null)
+                        if (coin.Type == CoinType.Rainbow || obstacleGroup == null || obstacleGroupId != coin.ObstacleGroupId)
                         {
                             obstacleGroup = new List<CoinState>();
                             obstacleGroups.Add(obstacleGroup);
+                            obstacleGroupId = coin.ObstacleGroupId;
                         }
 
                         obstacleGroup.Add(coinState);
@@ -575,6 +1251,7 @@ namespace Gameplay
                     }
 
                     obstacleGroup = null;
+                    obstacleGroupId = -1;
 
                     if (!coinCountsByTier.TryGetValue(coin.Tier, out var coins))
                     {
@@ -804,6 +1481,10 @@ namespace Gameplay
                 }
 
                 var sourceTopTier = sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Tier;
+                if (sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Type == CoinType.Iced)
+                {
+                    continue;
+                }
 
                 foreach (var targetSlot in slots)
                 {
@@ -812,8 +1493,9 @@ namespace Gameplay
                         continue;
                     }
 
-                    if (targetSlot.CoinCount == 0 ||
+                    if (sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Type != CoinType.Sticky && (targetSlot.CoinCount == 0 ||
                         targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == sourceTopTier)
+                    || sourceSlot.GetCoin(sourceSlot.CoinCount - 1).Type == CoinType.Sticky && targetSlot.CoinCount > 0 && targetSlot.GetCoin(targetSlot.CoinCount - 1).Tier == sourceTopTier)
                     {
                         return true;
                     }
@@ -913,7 +1595,7 @@ namespace Gameplay
                         continue;
                     }
 
-                    coins.Add(new CoinState(coin.Tier, coin.Type));
+                    coins.Add(new CoinState(coin.Tier, coin.Type, coin.IsHiddenGroupCenter, coin.ObstacleGroupId, coin.IcedCountdown));
                 }
 
                 var originalSlotState = _boardState.Slots[slotIndex];
@@ -935,11 +1617,42 @@ namespace Gameplay
             }
 
             var topTier = slot.GetCoin(slot.CoinCount - 1).Tier;
+
+            if (slot.GetCoin(slot.CoinCount - 1).Type == CoinType.Rainbow)
+            {
+                return 1;
+            }
+
             var stackCount = 0;
 
             for (var coinIndex = slot.CoinCount - 1; coinIndex >= 0; coinIndex--)
             {
-                if (slot.GetCoin(coinIndex).Tier != topTier)
+                if (slot.GetCoin(coinIndex).Tier != topTier || slot.GetCoin(coinIndex).Type != CoinType.Standard)
+                {
+                    break;
+                }
+
+                stackCount++;
+            }
+
+            return stackCount;
+        }
+
+        private static int GetMergeableTopCount(Slot slot)
+        {
+            if (slot.CoinCount == 0)
+            {
+                return 0;
+            }
+
+            var topTier = slot.GetCoin(slot.CoinCount - 1).Tier;
+            var stackCount = 0;
+
+            for (var coinIndex = slot.CoinCount - 1; coinIndex >= 0; coinIndex--)
+            {
+                var coin = slot.GetCoin(coinIndex);
+
+                if (coin.Tier != topTier || (coin.Type != CoinType.Standard && coin.Type != CoinType.Sticky))
                 {
                     break;
                 }
@@ -1147,6 +1860,49 @@ namespace Gameplay
             {
                 SourceSlot = sourceSlot;
                 TargetSlot = targetSlot;
+            }
+        }
+
+        public sealed class DealPlan
+        {
+            public int MaxTier { get; }
+            public Slot SkippedSlot { get; }
+            public List<DealStack> Stacks { get; }
+
+            public DealPlan(int maxTier, Slot skippedSlot, List<DealStack> stacks)
+            {
+                MaxTier = maxTier;
+                SkippedSlot = skippedSlot;
+                Stacks = stacks;
+            }
+        }
+
+        public sealed class DealStack
+        {
+            public int Tier { get; }
+            public int CoinCount { get; set; }
+            public Slot TargetSlot { get; set; }
+            public CoinType Type { get; }
+            public bool IsHiddenGroup { get; }
+            public int ObstacleGroupId { get; }
+            public int IcedCountdown { get; }
+
+            public DealStack(
+                int tier,
+                int coinCount,
+                Slot targetSlot,
+                CoinType type = CoinType.Standard,
+                bool isHiddenGroup = false,
+                int obstacleGroupId = 0,
+                int icedCountdown = 0)
+            {
+                Tier = tier;
+                CoinCount = coinCount;
+                TargetSlot = targetSlot;
+                Type = type;
+                IsHiddenGroup = isHiddenGroup;
+                ObstacleGroupId = obstacleGroupId;
+                IcedCountdown = icedCountdown;
             }
         }
     }

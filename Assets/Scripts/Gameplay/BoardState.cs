@@ -34,11 +34,17 @@ namespace Gameplay
     {
         public int Tier { get; }
         public CoinType Type { get; }
+        public bool IsHiddenGroupCenter { get; }
+        public int ObstacleGroupId { get; }
+        public int IcedCountdown { get; }
 
-        public CoinState(int tier, CoinType type)
+        public CoinState(int tier, CoinType type, bool isHiddenGroupCenter = false, int obstacleGroupId = 0, int icedCountdown = 0)
         {
             Tier = tier;
             Type = type;
+            IsHiddenGroupCenter = isHiddenGroupCenter;
+            ObstacleGroupId = obstacleGroupId;
+            IcedCountdown = icedCountdown;
         }
     }
 }

@@ -48,7 +48,7 @@ namespace Shop
                 var collectibleModel = _savedDataService.GetModel<CollectibleModel>();
                 _soundService.PlaySound(ClipName.ShopPurchase);
                 _hapticService.HapticLow();
-                collectibleModel.TotalCoins += configModel.ShopCoinVideoReward;
+                collectibleModel.TotalCoins += configModel.shopCoinVideoReward;
                 _savedDataService.SaveData(collectibleModel);
                 _eventDispatcherService.Dispatch(new CoinChangedSignal());
                 View.PlayCoinFly(collectibleModel.TotalCoins, View.rewardedVideoButton.transform);

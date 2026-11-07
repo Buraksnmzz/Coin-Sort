@@ -20,6 +20,9 @@ namespace Gameplay
         [SerializeField] private Button debugEasyDealButton;
         [SerializeField] private Button debugBasicDealButton;
         [SerializeField] private Button debugHardDealButton;
+        [SerializeField] private Button debugAutoMergeDealButton;
+        [SerializeField] private Button debugSmartDealButton;
+        [SerializeField] private TextMeshProUGUI debugDealtTypeText;
 
         public event Action NextBoardButtonClicked;
         public event Action PreviousBoardButtonClicked;
@@ -37,6 +40,9 @@ namespace Gameplay
             stopAutoPlayButton.onClick.AddListener(OnStopAutoPlayButtonClicked);
             debugEasyDealButton.onClick.AddListener(OnDebugEasyDealButtonClicked);
             debugBasicDealButton.onClick.AddListener(OnDebugBasicDealButtonClicked);
+            debugHardDealButton.onClick.AddListener(OnDebugHardDealButtonClicked);
+            debugAutoMergeDealButton.onClick.AddListener(OnDebugAutoMergeDealButtonClicked);
+            debugSmartDealButton.onClick.AddListener(OnDebugSmartDealButtonClicked);
         }
 
         public void SetBoard(BoardState boardState)
@@ -45,6 +51,8 @@ namespace Gameplay
             board.CoinsCreated += OnCoinsCreated;
             board.BoardStateChanged -= OnBoardStateChanged;
             board.BoardStateChanged += OnBoardStateChanged;
+            board.DealExecuted -= OnDealExecuted;
+            board.DealExecuted += OnDealExecuted;
             board.Initialize(boardState);
         }
 
@@ -125,6 +133,21 @@ namespace Gameplay
             board.DealBasic();
         }
 
+        private void OnDebugHardDealButtonClicked()
+        {
+            board.DealHard();
+        }
+
+        private void OnDebugAutoMergeDealButtonClicked()
+        {
+            board.DealAutoMerge();
+        }
+
+        private void OnDebugSmartDealButtonClicked()
+        {
+            board.DealSmart();
+        }
+
         private void OnAutoPlayButtonClicked()
         {
             AutoPlayButtonClicked?.Invoke();
@@ -143,6 +166,11 @@ namespace Gameplay
         private void OnBoardStateChanged(BoardState boardState)
         {
             BoardStateChanged?.Invoke(boardState);
+        }
+
+        private void OnDealExecuted(DealStrategyType dealStrategyType)
+        {
+            debugDealtTypeText.SetText(dealStrategyType.ToString());
         }
     }
 }

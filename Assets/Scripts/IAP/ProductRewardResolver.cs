@@ -9,7 +9,7 @@ namespace IAP
 
             if (productId == ProductIds.CoinPack1)
             {
-                return new CatalogProduct { Coins = configModel.ShopCoinReward1 };
+                return new CatalogProduct { Coins = configModel.shopCoinReward1 };
             }
             
             return new CatalogProduct();
