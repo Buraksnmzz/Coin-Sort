@@ -36,6 +36,15 @@ namespace Gameplay
                 : 2 + (CurrentBoardLevel - FirstBoardChangeLevel) / BoardChangeLevelInterval;
         }
 
+        public void SetDebugBoard(int boardIndex)
+        {
+            _model.CurrentLevel = GetFirstLevelForBoard(boardIndex);
+            _model.ProgressPercentage = 0f;
+            _model.HighestCreatedTier = 0;
+            _model.PhaseIndex = 0;
+            _model.BoardSnapshot = null;
+        }
+
         public bool InitializeBoard(int boardIndex, int highestTier)
         {
             if (_model.CurrentBoardIndex == boardIndex)
@@ -219,6 +228,13 @@ namespace Gameplay
             return level < LevelLoopEnd
                 ? level
                 : LevelLoopStart + (level - LevelLoopStart) % LevelLoopLength;
+        }
+
+        private static int GetFirstLevelForBoard(int boardIndex)
+        {
+            return boardIndex == 1
+                ? 1
+                : FirstBoardChangeLevel + (boardIndex - 2) * BoardChangeLevelInterval;
         }
 
         private void Save()

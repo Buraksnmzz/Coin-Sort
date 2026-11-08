@@ -109,7 +109,7 @@ namespace Gameplay
             private const int CandidateCount = 50;
             private const int MaximumDepth = 5;
             private const int MaximumStateCount = 50;
-            private const int MaximumSolverDurationMilliseconds = 600;
+            private const int MaximumSolverDurationMilliseconds = 100;
             private const int MergeStackSize = 10;
 
             private readonly float _selectionValue;

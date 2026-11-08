@@ -452,6 +452,8 @@ namespace Gameplay
 
             sequence.OnComplete(() =>
             {
+                var createdTiers = new List<int>();
+
                 foreach (var coin in transferredCoins)
                 {
                     coin.transform.SetParent(targetSlot.GetNextCoinParent(), true);
@@ -474,6 +476,7 @@ namespace Gameplay
                         if (coin.Type == CoinType.Rainbow)
                         {
                             coin.TransformRainbow(targetTopTier, coinSpriteConfig);
+                            createdTiers.Add(targetTopTier);
                         }
                     }
                 }
@@ -481,14 +484,14 @@ namespace Gameplay
                 ConvertStickyGroupWhenMergeReady(targetSlot, transferredCoins);
                 RevealTopHiddenCoins(targetSlot);
                 RevealTopHiddenCoins(_selectedSlot);
-                var upgradedTiers = TryMergeTargetStack(targetSlot);
+                createdTiers.AddRange(TryMergeTargetStack(targetSlot));
                 UpdateRetiredCoins();
                 _selectedCoins.Clear();
                 _selectedSlot = null;
                 _isAnimating = false;
                 BoardStateChanged?.Invoke(CreateBoardState());
 
-                CoinsCreated?.Invoke(upgradedTiers);
+                CoinsCreated?.Invoke(createdTiers);
             });
         }
 

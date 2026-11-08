@@ -58,7 +58,9 @@ namespace Gameplay
         private void OnNextBoardButtonClicked()
         {
             _currentBoardIndex++;
+            _levelProgressService.SetDebugBoard(_currentBoardIndex);
             ShowBoard();
+            CaptureLevelStartSnapshot();
         }
 
         private void OnPreviousBoardButtonClicked()
@@ -69,7 +71,9 @@ namespace Gameplay
             }
 
             _currentBoardIndex--;
+            _levelProgressService.SetDebugBoard(_currentBoardIndex);
             ShowBoard();
+            CaptureLevelStartSnapshot();
         }
 
         private void OnAutoPlayButtonClicked()

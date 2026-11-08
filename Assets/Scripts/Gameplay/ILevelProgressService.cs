@@ -8,6 +8,7 @@ namespace Gameplay
         int CurrentBoardLevel { get; }
         float Progress { get; }
         int GetBoardIndex();
+        void SetDebugBoard(int boardIndex);
         bool InitializeBoard(int boardIndex, int highestTier);
         BoardState RestoreBoardState(BoardState generatedBoardState);
         void SaveBoardState(BoardState boardState);
