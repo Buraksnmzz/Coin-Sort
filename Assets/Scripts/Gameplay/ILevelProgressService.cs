@@ -14,6 +14,7 @@ namespace Gameplay
         void SaveBoardState(BoardState boardState);
         void ResetLevelProgress();
         bool RegisterCoinCreated(int tier);
+        void RegisterHighestTierCoinsDestroyed(int tier, int count);
         void Flush();
     }
 }

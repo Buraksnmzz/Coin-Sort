@@ -70,6 +70,7 @@ public class Installer : MonoBehaviour
         ServiceLocator.Register<IAdsService>(new AdsService());
         ServiceLocator.Register<IBoardGenerationService>(new BoardGenerationService());
         ServiceLocator.Register<ILevelProgressService>(new LevelProgressService());
+        ServiceLocator.Register<IDynamicDifficultyService>(new DynamicDifficultyService());
         var savedDataService = ServiceLocator.GetService<ISavedDataService>();
         if (!savedDataService.GetModel<SettingsModel>().IsNoAds)
             YoogoLabManager.ShowBanner();

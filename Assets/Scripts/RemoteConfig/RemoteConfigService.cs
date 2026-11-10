@@ -34,6 +34,9 @@ namespace RemoteConfig
                 ApplyInt(root, "shuffle_cost", v => _remoteConfigModel.shuffleCost = v);
                 ApplyBool(root, "is_hardness_config_active", v => _remoteConfigModel.isHardnessConfigActive = v);
                 ApplyJson(root, "hardness_config", v => _remoteConfigModel.hardnessConfig = v);
+                ApplyBool(root, "is_dda_active", v => _remoteConfigModel.isDdaActive = v);
+                ApplyInt(root, "dda_start_level", v => _remoteConfigModel.ddaStartLevel = v);
+                ApplyFloat(root, "dda_starting_value", v => _remoteConfigModel.ddaStartingValue = v);
                 ApplyInt(root, "rainbow_unlock_level", v => _remoteConfigModel.rainbowUnlockLevel = v);
                 ApplyInt(root, "hidden_unlock_level", v => _remoteConfigModel.hiddenUnlockLevel = v);
                 ApplyInt(root, "sticky_unlock_level", v => _remoteConfigModel.stickyUnlockLevel = v);
@@ -97,6 +100,23 @@ namespace RemoteConfig
             var rawJson = token.Type == JTokenType.String ? token.Value<string>() : token.ToString();
             JObject.Parse(rawJson);
             setter(rawJson);
+        }
+
+        private void ApplyFloat(JObject root, string key, Action<float> setter)
+        {
+            if (!root.TryGetValue(key, out var token))
+                return;
+
+            if (token.Type == JTokenType.Float || token.Type == JTokenType.Integer)
+            {
+                setter(token.Value<float>());
+                return;
+            }
+
+            if (token.Type == JTokenType.String && float.TryParse(token.Value<string>(), out var value))
+            {
+                setter(value);
+            }
         }
 
         private bool TryReadInt(JToken token, out int value)

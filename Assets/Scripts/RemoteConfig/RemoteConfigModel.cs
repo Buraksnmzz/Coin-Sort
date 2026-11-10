@@ -43,6 +43,9 @@ namespace GameConfig
         public int hiddenUnlockLevel = 2;
         public int stickyUnlockLevel = 2;
         public int icedUnlockLevel = 2;
+        public bool isDdaActive = true;
+        public int ddaStartLevel = 22;
+        public float ddaStartingValue = 0.35f;
         
         public string hardnessConfig = @"{
     ""levels"": [

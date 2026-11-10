@@ -15,6 +15,8 @@ namespace Gameplay
         private const float HardDealHardness = 1f;
         private const float AutoMergeDealValue = 0.5f;
         private const int MaximumAutoMergeCandidates = 4;
+        private const float ShuffleCoinDelay = 0.01f;
+        private const float ShuffleScaleDuration = 0.2f;
 
         private enum AutoPlayDealMode
         {
@@ -23,6 +25,13 @@ namespace Gameplay
             Basic,
             Hard,
             AutoMerge
+        }
+
+        private enum BoosterMode
+        {
+            None,
+            Hammer,
+            Hand
         }
 
         [SerializeField] private Slot[] slots;
@@ -45,8 +54,14 @@ namespace Gameplay
         private Coroutine _autoPlayCoroutine;
         private int _currentMaxTier;
         private float _previousTimeScale;
+        private bool _usesDynamicDifficultyDeal;
+        private HardnessDealConfig _dynamicDifficultyDealConfig;
+        private float _dynamicDifficultyValue;
+        private BoosterMode _boosterMode;
 
         public event System.Action<IReadOnlyList<int>> CoinsCreated;
+        public event System.Action<Slot> HammerTargetSelected;
+        public event System.Action<int, int> HighestTierCoinsDestroyed;
         public event System.Action<BoardState> BoardStateChanged;
         public event System.Action<DealStrategyType> DealExecuted;
 
@@ -124,6 +139,12 @@ namespace Gameplay
                 return;
             }
 
+            if (_boosterMode == BoosterMode.Hammer)
+            {
+                SelectHammerTarget(slot);
+                return;
+            }
+
             if (_selectedSlot == null)
             {
                 SelectTopStack(slot);
@@ -133,15 +154,40 @@ namespace Gameplay
             if (_selectedSlot == slot)
             {
                 ReturnSelectedCoins();
+                _boosterMode = BoosterMode.None;
                 return;
             }
 
-            if (!CanTransferTo(slot))
+            if (slot.CoinCount >= slotCapacity || (!CanTransferTo(slot) && _boosterMode != BoosterMode.Hand))
             {
                 return;
             }
 
             TransferSelectedCoins(slot);
+        }
+
+        public void ActivateHammerBooster()
+        {
+            if (_isAnimating)
+            {
+                return;
+            }
+
+            StopAutoPlay();
+            ResetSelection();
+            _boosterMode = BoosterMode.Hammer;
+        }
+
+        public void ActivateHandBooster()
+        {
+            if (_isAnimating)
+            {
+                return;
+            }
+
+            StopAutoPlay();
+            ResetSelection();
+            _boosterMode = BoosterMode.Hand;
         }
 
         private IEnumerator AutoPlay()
@@ -488,11 +534,68 @@ namespace Gameplay
                 UpdateRetiredCoins();
                 _selectedCoins.Clear();
                 _selectedSlot = null;
+                _boosterMode = BoosterMode.None;
                 _isAnimating = false;
                 BoardStateChanged?.Invoke(CreateBoardState());
 
                 CoinsCreated?.Invoke(createdTiers);
             });
+        }
+
+        private void SelectHammerTarget(Slot slot)
+        {
+            if (slot.CoinCount == 0)
+            {
+                return;
+            }
+
+            _isAnimating = true;
+            _boosterMode = BoosterMode.None;
+            HammerTargetSelected?.Invoke(slot);
+        }
+
+        public void DestroySlotCoinsWithHammer(Slot slot)
+        {
+            var highestTier = GetHighestTier();
+            var destroyedHighestTierCoinCount = 0;
+            var coins = new List<CoinBase>(slot.CoinCount);
+
+            for (var coinIndex = 0; coinIndex < slot.CoinCount; coinIndex++)
+            {
+                var coin = slot.GetCoin(coinIndex);
+                destroyedHighestTierCoinCount += coin.Tier == highestTier ? 1 : 0;
+                coins.Add(coin);
+            }
+
+            var sequence = DOTween.Sequence();
+
+            foreach (var coin in coins)
+            {
+                sequence.Join(coin.transform.DOScale(Vector3.zero, ShuffleScaleDuration));
+            }
+
+            sequence.OnComplete(() =>
+            {
+                foreach (var coin in coins)
+                {
+                    coin.gameObject.SetActive(false);
+                    Destroy(coin.gameObject);
+                }
+
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)slot.GetNextCoinParent());
+                UpdateRetiredCoins();
+                BoardStateChanged?.Invoke(CreateBoardState());
+
+                if (destroyedHighestTierCoinCount > 0)
+                {
+                    HighestTierCoinsDestroyed?.Invoke(highestTier, destroyedHighestTierCoinCount);
+                }
+            });
+        }
+
+        public void CompleteHammerAnimation()
+        {
+            _isAnimating = false;
         }
 
         private List<int> TryMergeTargetStack(Slot targetSlot)
@@ -538,26 +641,31 @@ namespace Gameplay
 
         public void DealEasy()
         {
+            _usesDynamicDifficultyDeal = false;
             ExecuteDealStrategy(new EasyDealStrategy());
         }
 
         public void DealBasic()
         {
+            _usesDynamicDifficultyDeal = false;
             ExecuteDealStrategy(new BasicDealStrategy());
         }
 
         public void DealHard()
         {
+            _usesDynamicDifficultyDeal = false;
             ExecuteDealStrategy(new HardDealStrategy());
         }
 
         public void DealAutoMerge()
         {
+            _usesDynamicDifficultyDeal = false;
             ExecuteDealStrategy(new AutoMergeDealStrategy());
         }
 
         public void DealSmart()
         {
+            _usesDynamicDifficultyDeal = false;
             ExecuteDealStrategy(CreateSmartDealStrategy(.9f));
         }
 
@@ -580,6 +688,17 @@ namespace Gameplay
                 ApplyObstacleDeals(deal, strategy.Type == DealStrategyType.Easy);
             }
 
+            if (_usesDynamicDifficultyDeal)
+            {
+                Debug.Log(
+                    $"[DDA] D={_dynamicDifficultyValue:F3}, deal={_dynamicDifficultyDealConfig.DealType}, value={_dynamicDifficultyDealConfig.Value:F3}");
+            }
+
+            if (!string.IsNullOrEmpty(deal.ObstacleLog))
+            {
+                Debug.Log(deal.ObstacleLog);
+            }
+
             DealExecuted?.Invoke(strategy.Type);
             ExecuteDeal(deal.Stacks);
         }
@@ -589,17 +708,33 @@ namespace Gameplay
             var remoteConfigModel = ServiceLocator.GetService<ISavedDataService>().GetModel<RemoteConfigModel>();
             var levelProgressService = ServiceLocator.GetService<ILevelProgressService>();
             var currentLevel = levelProgressService.CurrentLevel;
-            var result = _obstacleDealPlanner.Apply(
+            _obstacleDealPlanner.Apply(
                 deal,
                 new DealContext(slots, slotCapacity, deal.MaxTier),
                 currentLevel,
                 remoteConfigModel,
-                ServiceLocator.GetService<ISavedDataService>().GetModel<LevelProgressModel>());
+                ServiceLocator.GetService<ISavedDataService>().GetModel<LevelProgressModel>(),
+                out var obstacleLog);
+            deal.ObstacleLog = obstacleLog;
         }
 
         private IDealStrategy GetDealStrategy()
         {
             var remoteConfigModel = ServiceLocator.GetService<ISavedDataService>().GetModel<RemoteConfigModel>();
+            var dynamicDifficultyService = ServiceLocator.GetService<IDynamicDifficultyService>();
+
+            if (dynamicDifficultyService.IsActive)
+            {
+                var dynamicConfig = dynamicDifficultyService.GetDealConfig();
+                _usesDynamicDifficultyDeal = true;
+                _dynamicDifficultyDealConfig = dynamicConfig;
+                _dynamicDifficultyValue = dynamicDifficultyService.CurrentDifficulty;
+                return dynamicConfig.DealType == HardnessDealType.AutoMerge
+                    ? new AutoMergeDealStrategy(dynamicConfig.Value)
+                    : CreateSmartDealStrategy(dynamicConfig.Value);
+            }
+
+            _usesDynamicDifficultyDeal = false;
 
             if (!remoteConfigModel.isHardnessConfigActive)
             {
@@ -741,7 +876,7 @@ namespace Gameplay
                 {
                     var coin = Instantiate(coinPrefab, stack.TargetSlot.GetNextCoinParent());
                     coin.Initialize(
-                        new CoinState(stack.Tier, stack.Type, stack.IsHiddenGroup && coinIndex == 1, stack.ObstacleGroupId, stack.IcedCountdown),
+                        new CoinState(stack.Tier, stack.Type, stack.IsHiddenGroup && coinIndex == 2, stack.ObstacleGroupId, stack.IcedCountdown),
                         coinSpriteConfig);
 
                     if (stack.Type == CoinType.Hidden)
@@ -1270,7 +1405,100 @@ namespace Gameplay
             TrimLowestTierCoins(coinCountsByTier);
             DistributeCompleteStacks(coinCountsByTier, shuffledSlots);
             DistributeRemainingCoins(coinCountsByTier, shuffledSlots);
-            Initialize(CreateShuffledBoardState(shuffledSlots));
+            AnimateShuffle(CreateShuffledBoardState(shuffledSlots));
+        }
+
+        private void AnimateShuffle(BoardState shuffledBoardState)
+        {
+            var coins = new List<CoinBase>();
+
+            foreach (var slot in slots)
+            {
+                for (var coinIndex = 0; coinIndex < slot.CoinCount; coinIndex++)
+                {
+                    coins.Add(slot.GetCoin(coinIndex));
+                }
+            }
+
+            _isAnimating = true;
+            var scaleDownSequence = DOTween.Sequence();
+
+            foreach (var coin in coins)
+            {
+                scaleDownSequence.Join(coin.transform.DOScale(Vector3.zero, ShuffleScaleDuration));
+            }
+
+            scaleDownSequence.OnComplete(() => MoveShuffledCoins(shuffledBoardState, coins));
+        }
+
+        private void MoveShuffledCoins(BoardState shuffledBoardState, List<CoinBase> coins)
+        {
+            var shuffledCoins = new List<ShuffleCoin>();
+
+            for (var slotIndex = 0; slotIndex < slots.Length; slotIndex++)
+            {
+                foreach (var coinState in shuffledBoardState.Slots[slotIndex].Coins)
+                {
+                    var coin = GetMatchingCoin(coins, coinState);
+                    coins.Remove(coin);
+                    var sourcePosition = coin.transform.position;
+                    coin.transform.SetParent(slots[slotIndex].GetNextCoinParent(), true);
+                    coin.SetIgnoredByLayout(false);
+                    shuffledCoins.Add(new ShuffleCoin(coin, sourcePosition));
+                }
+            }
+
+            foreach (var coin in coins)
+            {
+                Destroy(coin.gameObject);
+            }
+
+            foreach (var slot in slots)
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)slot.GetNextCoinParent());
+            }
+
+            var sequence = DOTween.Sequence();
+
+            for (var coinIndex = 0; coinIndex < shuffledCoins.Count; coinIndex++)
+            {
+                var shuffledCoin = shuffledCoins[coinIndex];
+                var targetPosition = shuffledCoin.Coin.transform.position;
+                shuffledCoin.Coin.SetIgnoredByLayout(true);
+                shuffledCoin.Coin.transform.position = shuffledCoin.SourcePosition;
+                var startTime = coinIndex * ShuffleCoinDelay;
+                sequence.Insert(startTime, shuffledCoin.Coin.transform.DOScale(Vector3.one, ShuffleScaleDuration));
+                sequence.Insert(startTime, shuffledCoin.Coin.MoveTo(targetPosition, ShuffleScaleDuration));
+            }
+
+            sequence.OnComplete(() =>
+            {
+                foreach (var shuffledCoin in shuffledCoins)
+                {
+                    shuffledCoin.Coin.SetIgnoredByLayout(false);
+                }
+
+                UpdateRetiredCoins();
+                _isAnimating = false;
+                BoardStateChanged?.Invoke(CreateBoardState());
+            });
+        }
+
+        private static CoinBase GetMatchingCoin(List<CoinBase> coins, CoinState coinState)
+        {
+            foreach (var coin in coins)
+            {
+                if (coin.Tier == coinState.Tier &&
+                    coin.Type == coinState.Type &&
+                    coin.IsHiddenGroupCenter == coinState.IsHiddenGroupCenter &&
+                    coin.ObstacleGroupId == coinState.ObstacleGroupId &&
+                    coin.IcedCountdown == coinState.IcedCountdown)
+                {
+                    return coin;
+                }
+            }
+
+            throw new System.InvalidOperationException("No matching coin found while shuffling the board.");
         }
 
         private void DistributeObstacleGroups(
@@ -1866,11 +2094,24 @@ namespace Gameplay
             }
         }
 
+        private readonly struct ShuffleCoin
+        {
+            public CoinBase Coin { get; }
+            public Vector3 SourcePosition { get; }
+
+            public ShuffleCoin(CoinBase coin, Vector3 sourcePosition)
+            {
+                Coin = coin;
+                SourcePosition = sourcePosition;
+            }
+        }
+
         public sealed class DealPlan
         {
             public int MaxTier { get; }
             public Slot SkippedSlot { get; }
             public List<DealStack> Stacks { get; }
+            public string ObstacleLog { get; set; }
 
             public DealPlan(int maxTier, Slot skippedSlot, List<DealStack> stacks)
             {

@@ -13,6 +13,18 @@ namespace Gameplay
         public int PhaseIndex;
         public BoardSnapshot BoardSnapshot;
         public List<ObstacleScheduleSnapshot> ObstacleSchedules = new List<ObstacleScheduleSnapshot>();
+        public bool DdaInitialized;
+        public float DdaValue;
+        public int DdaPreActivationFailureCount;
+        public int DdaConsecutiveLosses;
+        public float DdaFailureStreakStartValue;
+        public bool DdaBreathLevel;
+        public bool DdaEasyPhaseActive;
+        public bool DdaEarlyWinIncreaseApplied;
+        public float DdaEarlyWinIncreaseAmount;
+        public long DdaLastAttemptUtcTicks;
+        public int DdaObstacleStage;
+        public int DdaConsecutiveMaximumDifficultyWins;
     }
 
     [Serializable]

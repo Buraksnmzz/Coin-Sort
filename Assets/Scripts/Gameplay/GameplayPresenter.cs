@@ -18,6 +18,7 @@ namespace Gameplay
         private ILevelProgressService _levelProgressService;
         private IEventDispatcherService _eventDispatcherService;
         private ISavedDataService _savedDataService;
+        private IDynamicDifficultyService _dynamicDifficultyService;
         private int _currentBoardIndex;
         private BoardState _levelStartSnapshot;
 
@@ -27,6 +28,7 @@ namespace Gameplay
             _levelProgressService = ServiceLocator.GetService<ILevelProgressService>();
             _eventDispatcherService = ServiceLocator.GetService<IEventDispatcherService>();
             _savedDataService = ServiceLocator.GetService<ISavedDataService>();
+            _dynamicDifficultyService = ServiceLocator.GetService<IDynamicDifficultyService>();
             _currentBoardIndex = _levelProgressService.GetBoardIndex();
 
             View.NextBoardButtonClicked += OnNextBoardButtonClicked;
@@ -34,6 +36,7 @@ namespace Gameplay
             View.AutoPlayButtonClicked += OnAutoPlayButtonClicked;
             View.StopAutoPlayButtonClicked += OnStopAutoPlayButtonClicked;
             View.CoinsCreated += OnCoinsCreated;
+            View.HighestTierCoinsDestroyed += OnHighestTierCoinsDestroyed;
             View.BoardStateChanged += OnBoardStateChanged;
             _eventDispatcherService.AddListener<RestartLevelSignal>(OnRestartLevel);
             _eventDispatcherService.AddListener<ShuffleBoardSignal>(OnShuffleBoard);
@@ -49,6 +52,7 @@ namespace Gameplay
             View.AutoPlayButtonClicked -= OnAutoPlayButtonClicked;
             View.StopAutoPlayButtonClicked -= OnStopAutoPlayButtonClicked;
             View.CoinsCreated -= OnCoinsCreated;
+            View.HighestTierCoinsDestroyed -= OnHighestTierCoinsDestroyed;
             View.BoardStateChanged -= OnBoardStateChanged;
             _eventDispatcherService.RemoveListener<RestartLevelSignal>(OnRestartLevel);
             _eventDispatcherService.RemoveListener<ShuffleBoardSignal>(OnShuffleBoard);
@@ -100,6 +104,8 @@ namespace Gameplay
 
             UpdateDealType();
             View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
+            _dynamicDifficultyService.UpdateEasyPhase(boardState);
+            _dynamicDifficultyService.BeginAttempt();
         }
 
         private void OnBoardStateChanged(BoardState boardState)
@@ -116,12 +122,21 @@ namespace Gameplay
                 levelCompleted |= _levelProgressService.RegisterCoinCreated(tier);
             }
 
+            _dynamicDifficultyService.RegisterProgress(_levelProgressService.Progress);
             UpdateLevel(levelCompleted);
 
             if (!View.CanContinuePlaying())
             {
                 ServiceLocator.GetService<IUIService>().ShowPopup<OutOfMovesPresenter>();
             }
+        }
+
+        private void OnHighestTierCoinsDestroyed(int tier, int count)
+        {
+            _levelProgressService.RegisterHighestTierCoinsDestroyed(tier, count);
+            _dynamicDifficultyService.RegisterProgress(_levelProgressService.Progress);
+            View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
+            _levelProgressService.Flush();
         }
 
         private void UpdateLevel(bool levelCompleted)
@@ -135,6 +150,11 @@ namespace Gameplay
 
             if (nextBoardIndex != _currentBoardIndex)
             {
+                if (levelCompleted)
+                {
+                    _dynamicDifficultyService.RegisterWin(_currentBoardIndex);
+                }
+
                 _currentBoardIndex = nextBoardIndex;
                 ShowBoard();
 
@@ -151,19 +171,24 @@ namespace Gameplay
 
             if (levelCompleted)
             {
+                _dynamicDifficultyService.RegisterWin(_currentBoardIndex);
                 UpdateDealType();
                 View.UnlockSlotsForLevel(_levelProgressService.CurrentBoardLevel);
+                _dynamicDifficultyService.UpdateEasyPhase(View.GetCurrentBoardState());
                 CaptureLevelStartSnapshot();
+                _dynamicDifficultyService.BeginAttempt();
                 _levelProgressService.Flush();
             }
         }
 
         private void OnRestartLevel(RestartLevelSignal signal)
         {
+            _dynamicDifficultyService.RegisterLoss();
             _levelProgressService.ResetLevelProgress();
             View.SetBoard(CloneBoardState(_levelStartSnapshot));
             _levelProgressService.SaveBoardState(View.GetCurrentBoardState());
             View.SetLevel(_levelProgressService.CurrentLevel, _levelProgressService.Progress);
+            _dynamicDifficultyService.BeginAttempt();
             _levelProgressService.Flush();
         }
 

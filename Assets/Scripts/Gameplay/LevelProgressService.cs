@@ -177,6 +177,17 @@ namespace Gameplay
             return false;
         }
 
+        public void RegisterHighestTierCoinsDestroyed(int tier, int count)
+        {
+            if (tier != _model.HighestCreatedTier)
+            {
+                return;
+            }
+
+            var progressPerCoin = 100f / GetPhaseCount(tier, _model.PhaseIndex);
+            _model.ProgressPercentage = Mathf.Max(0f, _model.ProgressPercentage - progressPerCoin * count);
+        }
+
         public void Flush()
         {
             Save();
